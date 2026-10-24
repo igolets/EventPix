@@ -14,3 +14,6 @@ obj/
 *.db-wal
 pepper.key
 .env
+
+# Local test/coverage output
+TestResults/
