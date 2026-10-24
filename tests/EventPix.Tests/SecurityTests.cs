@@ -23,9 +23,17 @@ public class SecurityTests
     [InlineData("  Bob@Example.COM ", "bob@example.com")]
     [InlineData("not-an-email", null)]
     [InlineData("", null)]
-    public void Email_IsNormalised(string input, string? expected)
+    [InlineData(null, null)]
+    [InlineData("   ", null)]
+    public void Email_IsNormalised(string? input, string? expected)
     {
         Assert.Equal(expected, Tokens.NormalizeEmail(input));
+    }
+
+    [Fact]
+    public void Email_LongerThan254_IsRejected()
+    {
+        Assert.Null(Tokens.NormalizeEmail("a@b." + new string('c', 260)));
     }
 
     [Fact]

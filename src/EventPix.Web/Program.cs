@@ -119,7 +119,7 @@ await using (var scope = app.Services.CreateAsyncScope())
 
 if (CliCommands.IsCommand(args))
 {
-    return await CliCommands.RunAsync(app, args);
+    return await CliCommands.RunAsync(app.Services, args);
 }
 
 // ---- pipeline --------------------------------------------------------------------------------------------

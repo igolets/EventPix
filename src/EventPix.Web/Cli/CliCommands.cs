@@ -21,9 +21,9 @@ internal static class CliCommands
         return args.Length > 0 && args[0] is "create-event" or "list-events" or "rotate-token" or "add-invites";
     }
 
-    public static async Task<int> RunAsync(WebApplication app, string[] args)
+    public static async Task<int> RunAsync(IServiceProvider services, string[] args)
     {
-        await using var scope = app.Services.CreateAsyncScope();
+        await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
         var tokens = scope.ServiceProvider.GetRequiredService<EventTokenService>();
         var baseUrl = scope.ServiceProvider.GetRequiredService<IOptions<EventPixOptions>>().Value.PublicBaseUrl;

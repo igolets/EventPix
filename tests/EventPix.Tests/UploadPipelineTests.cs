@@ -68,7 +68,31 @@ public sealed class UploadPipelineTests : IDisposable
         Assert.True(storage.Exists(item.StorageKey + "/original"));
         Assert.True(storage.Exists(item.StorageKey + "/thumb.jpg"));
         Assert.True(storage.Exists(item.StorageKey + "/preview.jpg"));
+
+        // List, star, and download the tab. MediaDto carries string-serialised enums; mirror the API's options.
+        var list = await client.GetFromJsonAsync<EventPix.Web.Features.MediaDto[]>(U($"/api/e/{token}/tabs/{payload.TabId}/media"), _json);
+        var entry = Assert.Single(list!);
+        Assert.Equal(uploaded.Id, entry.Id);
+        Assert.False(entry.Starred);
+        Assert.Equal(20, entry.Width);
+        Assert.Equal(40, entry.Height);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsync(U($"/api/e/{token}/media/{uploaded.Id}/star"), null)).StatusCode);
+        var starred = await client.GetFromJsonAsync<EventPix.Web.Features.MediaDto[]>(U($"/api/e/{token}/tabs/{payload.TabId}/media"), _json);
+        Assert.True(Assert.Single(starred!).Starred);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(U($"/api/e/{token}/media/{uploaded.Id}/star"))).StatusCode);
+
+        var zip = await client.GetAsync(U($"/api/e/{token}/download"));
+        Assert.Equal(HttpStatusCode.OK, zip.StatusCode);
+        Assert.Contains("zip", zip.Content.Headers.ContentType?.ToString() ?? "", StringComparison.Ordinal);
+        Assert.True((await zip.Content.ReadAsByteArrayAsync()).Length > 0);
     }
+
+    private static readonly System.Text.Json.JsonSerializerOptions _json = new(
+        System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
 
     private static Uri U(string path) => new(path, UriKind.Relative);
 

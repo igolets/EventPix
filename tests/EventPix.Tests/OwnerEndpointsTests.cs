@@ -189,6 +189,59 @@ public sealed class OwnerEndpointsTests : IDisposable
         Assert.False(await db2.Subscriptions.AnyAsync(s => s.Id == subId));
     }
 
+    [Fact]
+    public async Task Owner_Endpoint_Edge_Cases_Are_Rejected()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var (token, eventId) = await _app.CreateEventAsync(owner);
+        var client = _app.CreateClient();
+        await _app.SignInAsync(client, token, owner);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(U($"/api/e/{token}/tabs"),
+            new { Name = new string('x', 101), AllowGuestUploads = false })).StatusCode);
+
+        var created = await client.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "A", AllowGuestUploads = false });
+        var tabId = (await created.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(U($"/api/e/{token}/tabs/order"),
+            new { Ids = new[] { tabId, tabId } })).StatusCode);
+
+        // Author tabs carry the guest's display name: renaming is refused, empty patch is fine.
+        var authorTabId = await AddAuthorTabAsync(eventId, owner);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{authorTabId}"),
+            new { Name = "X" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{authorTabId}"),
+            new { })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Request_Code_Is_Limited_Per_Window()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var (token, eventId) = await _app.CreateEventAsync(owner);
+        var client = _app.CreateClient();
+
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.Equal(HttpStatusCode.Accepted,
+                (await client.PostAsJsonAsync(U($"/api/e/{token}/auth/request"), new { Email = owner })).StatusCode);
+        }
+
+        using var scope = _app.Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+        Assert.Equal(3, await db.LoginCodes.CountAsync(c => c.EventId == eventId && c.Email == owner));
+    }
+
+    private async Task<Guid> AddAuthorTabAsync(Guid eventId, string ownerEmail)
+    {
+        using var scope = _app.Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+        var owner = await db.Members.FirstAsync(m => m.EventId == eventId && m.Email == ownerEmail);
+        var tab = new Tab { EventId = eventId, Name = owner.DisplayName, Kind = TabKind.Author, OwnerMemberId = owner.Id, SortOrder = 1000 };
+        db.Tabs.Add(tab);
+        await db.SaveChangesAsync();
+        return tab.Id;
+    }
+
     private static Uri U(string path)
     {
         return new(path, UriKind.Relative);

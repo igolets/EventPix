@@ -19,28 +19,24 @@ public sealed class MediaPipelineTests
         Assert.Equal((40, 20), (result.Value.Width, result.Value.Height));
     }
 
-    [Fact]
-    public void ImageVariants_RotatesPerExifOrigin()
+    [Theory]
+    [InlineData(1, 40, 20, 10, 10, 30, 10)]   // TopLeft: identity
+    [InlineData(2, 40, 20, 30, 10, 10, 10)]   // TopRight: mirror horizontally
+    [InlineData(3, 40, 20, 30, 10, 10, 10)]   // BottomRight: rotate 180
+    [InlineData(4, 40, 20, 10, 10, 30, 10)]   // BottomLeft: mirror vertically
+    [InlineData(5, 20, 40, 10, 10, 10, 30)]   // LeftTop: transpose
+    [InlineData(6, 20, 40, 10, 10, 10, 30)]   // RightTop: rotate 90 CW
+    [InlineData(7, 20, 40, 10, 30, 10, 10)]   // RightBottom: transverse
+    [InlineData(8, 20, 40, 10, 30, 10, 10)]   // LeftBottom: rotate 270 CW
+    public void ImageVariants_Honours_Every_Exif_Origin(
+        int origin, int w, int h, int redX, int redY, int blueX, int blueY)
     {
-        // EXIF orientation 6 = rotate 90° CW: the left (red) half of the source ends up on top.
-        using var src = new MemoryStream(TestJpeg.Asymmetric(orientation: 6));
+        using var src = new MemoryStream(TestJpeg.Asymmetric((ushort)origin));
         var result = ImageVariants.Create(src);
         Assert.NotNull(result);
-        Assert.Equal((20, 40), (result.Value.Width, result.Value.Height));
-        AssertHalf(result.Value.Preview, x: 10, y: 10, red: true);
-        AssertHalf(result.Value.Preview, x: 10, y: 30, red: false);
-    }
-
-    [Fact]
-    public void ImageVariants_FlipsPerExifOrigin180()
-    {
-        // EXIF orientation 3 = rotate 180°: the red half moves to the right.
-        using var src = new MemoryStream(TestJpeg.Asymmetric(orientation: 3));
-        var result = ImageVariants.Create(src);
-        Assert.NotNull(result);
-        Assert.Equal((40, 20), (result.Value.Width, result.Value.Height));
-        AssertHalf(result.Value.Preview, x: 30, y: 10, red: true);
-        AssertHalf(result.Value.Preview, x: 10, y: 10, red: false);
+        Assert.Equal((w, h), (result.Value.Width, result.Value.Height));
+        AssertHalf(result.Value.Preview, redX, redY, red: true);
+        AssertHalf(result.Value.Preview, blueX, blueY, red: false);
     }
 
     private static void AssertHalf(byte[] jpegBytes, int x, int y, bool red)
@@ -92,6 +88,23 @@ public sealed class MediaPipelineTests
         Assert.Null(ExifReader.ReadTakenUtc(src));
     }
 
+    [Fact]
+    public void ExifReader_Reads_BigEndian_Tiff()
+    {
+        using var src = new MemoryStream(TestJpeg.Asymmetric(6, "2026:05:17 14:30:00", "+02:00", bigEndian: true));
+        Assert.Equal(new DateTimeOffset(2026, 5, 17, 12, 30, 0, TimeSpan.Zero), ExifReader.ReadTakenUtc(src));
+    }
+
+    [Fact]
+    public void ExifReader_ParseOffset_Handles_Both_Signs_And_Garbage()
+    {
+        Assert.Equal(new TimeSpan(2, 0, 0), ExifReader.ParseOffset("+02:00"));
+        Assert.Equal(new TimeSpan(-7, -30, 0), ExifReader.ParseOffset("-07:30"));
+        Assert.Equal(TimeSpan.Zero, ExifReader.ParseOffset(null));
+        Assert.Equal(TimeSpan.Zero, ExifReader.ParseOffset("junk"));
+        Assert.Equal(TimeSpan.Zero, ExifReader.ParseOffset("+99:99"));
+    }
+
     // ---- ffprobe JSON ---------------------------------------------------------------------------------------------
 
     [Fact]
@@ -127,13 +140,42 @@ public sealed class MediaPipelineTests
             Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoProbe>.Instance);
         Assert.Null(await probe.ProbeAsync("clip.mp4", CancellationToken.None));
     }
+
+    [Fact]
+    public async Task VideoProbe_ProbeAsync_Missing_Tool_ReturnsNull()
+    {
+        var probe = new VideoProbe(
+            Microsoft.Extensions.Options.Options.Create(
+                new EventPix.Web.Configuration.EventPixOptions { FfprobePath = "definitely-not-a-real-tool-xyz" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoProbe>.Instance);
+        Assert.Null(await probe.ProbeAsync("clip.mp4", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task VideoFrameExtractor_Disabled_ReturnsNull()
+    {
+        var extractor = new VideoFrameExtractor(
+            Microsoft.Extensions.Options.Options.Create(new EventPix.Web.Configuration.EventPixOptions { FfmpegPath = "" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoFrameExtractor>.Instance);
+        Assert.Null(await extractor.ExtractAsync("clip.mp4", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task VideoFrameExtractor_Missing_Tool_ReturnsNull()
+    {
+        var extractor = new VideoFrameExtractor(
+            Microsoft.Extensions.Options.Options.Create(
+                new EventPix.Web.Configuration.EventPixOptions { FfmpegPath = "definitely-not-a-real-tool-xyz" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoFrameExtractor>.Instance);
+        Assert.Null(await extractor.ExtractAsync("clip.mp4", CancellationToken.None));
+    }
 }
 
 /// <summary>Builds small test JPEGs (40x20, red left / blue right) with a hand-crafted EXIF APP1 segment.</summary>
 internal static class TestJpeg
 {
     public static byte[] Asymmetric(ushort orientation = 1, string? taken = null, string? offset = null,
-        bool bogusExifPointer = false)
+        bool bogusExifPointer = false, bool bigEndian = false)
     {
         using var bmp = new SKBitmap(40, 20);
         using (var canvas = new SKCanvas(bmp))
@@ -145,13 +187,13 @@ internal static class TestJpeg
 
         using var image = SKImage.FromBitmap(bmp);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 100);
-        return WithExif(data.ToArray(), orientation, taken, offset, bogusExifPointer);
+        return WithExif(data.ToArray(), orientation, taken, offset, bogusExifPointer, bigEndian);
     }
 
     public static byte[] WithExif(byte[] jpeg, ushort orientation, string? taken, string? offset,
-        bool bogusExifPointer = false)
+        bool bogusExifPointer = false, bool bigEndian = false)
     {
-        var tiff = BuildTiff(orientation, taken, offset, bogusExifPointer);
+        var tiff = BuildTiff(orientation, taken, offset, bogusExifPointer, bigEndian);
         var app1 = new List<byte> { 0xFF, 0xE1 };
         var len = 2 + 6 + tiff.Count;   // segment length counts the length bytes themselves
         app1.Add((byte)(len >> 8));
@@ -167,17 +209,29 @@ internal static class TestJpeg
         return result;
     }
 
-    private static List<byte> BuildTiff(ushort orientation, string? taken, string? offset, bool bogusExifPointer)
+    private static List<byte> BuildTiff(ushort orientation, string? taken, string? offset, bool bogusExifPointer,
+        bool bigEndian)
     {
         var tiff = new List<byte>();
-        void U16(int v) { tiff.Add((byte)v); tiff.Add((byte)(v >> 8)); }
-        void U32(int v) { U16(v & 0xFFFF); U16(v >> 16); }
+        void U16(int v)
+        {
+            if (bigEndian) { tiff.Add((byte)(v >> 8)); tiff.Add((byte)v); }
+            else { tiff.Add((byte)v); tiff.Add((byte)(v >> 8)); }
+        }
+
+        void U32(int v)
+        {
+            if (bigEndian) { U16(v >> 16); U16(v & 0xFFFF); }
+            else { U16(v & 0xFFFF); U16(v >> 16); }
+        }
+
         void Entry(int tag, int type, int count, int value)
         {
             U16(tag);
             U16(type);
             U32(count);
-            U32(value);
+            // A SHORT value sits in the first two bytes of the value field in big-endian files.
+            U32(bigEndian && type == 3 ? value << 16 : value);
         }
 
         var hasTimes = taken is not null;
@@ -187,7 +241,7 @@ internal static class TestJpeg
         var offsetBytes = hasTimes ? Encoding.ASCII.GetBytes(offset + "\0") : Array.Empty<byte>();
         var exifIfdPos = dataPos + takenBytes.Length + offsetBytes.Length;
 
-        tiff.AddRange([(byte)'I', (byte)'I']);                       // little-endian TIFF
+        tiff.AddRange(bigEndian ? [(byte)'M', (byte)'M'] : [(byte)'I', (byte)'I']);
         U16(42);
         U32(8);                                                      // IFD0 offset
 

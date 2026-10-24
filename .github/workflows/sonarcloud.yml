@@ -42,7 +42,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
         run: |
-          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"igolets_EventPix" /o:"igolets" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" "/d:sonar.issue.ignore.multicriteria=e1" "/d:sonar.issue.ignore.multicriteria.e1.ruleKey=Web:S6850" "/d:sonar.issue.ignore.multicriteria.e1.resourceKey=**/templates.html" "/d:sonar.cs.opencover.reportsPaths=${{ github.workspace }}\TestResults\**\coverage.opencover.xml" "/d:sonar.exclusions=**/Migrations/**"
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"igolets_EventPix" /o:"igolets" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" "/d:sonar.issue.ignore.multicriteria=e1" "/d:sonar.issue.ignore.multicriteria.e1.ruleKey=Web:S6850" "/d:sonar.issue.ignore.multicriteria.e1.resourceKey=**/templates.html" "/d:sonar.cs.opencover.reportsPaths=${{ github.workspace }}\TestResults\**\coverage.opencover.xml" "/d:sonar.exclusions=**/Migrations/**" "/d:sonar.coverage.exclusions=**/wwwroot/**"
           dotnet build --no-incremental
           dotnet test --no-build --collect:"XPlat Code Coverage" --settings tests/coverlet.runsettings --results-directory "${{ github.workspace }}\TestResults"
           ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"

@@ -175,7 +175,13 @@ set client body-size and timeouts in nginx/IIS (`client_max_body_size`, `maxAllo
 | App types are `internal` | CA1515: this is an application, not a library. Tests see internals via `InternalsVisibleTo` |
 | Single NuGet source in `NuGet.config` | Central Package Management needs deterministic restore (NU1507); patched direct refs pin vulnerable transitives (SQLitePCLRaw, System.Security.Cryptography.Pkcs) |
 
-## 11. Open questions
+## 11. Testing layers
+
+* **Unit** (xUnit): security-relevant helpers — tokens, OTP parsing, sniffing, storage key resolution, EXIF/ffprobe parsing, image orientation matrices.
+* **Integration** (xUnit + `WebApplicationFactory` + TestServer): endpoints, auth flows, invite gating, tab/invite management, unsubscribe API, upload -> media-worker pipeline, all against a temp SQLite DB and storage dir.
+* **E2E** (`Microsoft.Playwright`, MIT, test-only): the real app as a Kestrel process on a random loopback port (temp paths via `EventPix__*` env vars), driven by Chromium through the theme's `data-ref` hooks — login, upload, lightbox, star, ZIP download, unsubscribe page. Selectors never use styling classes, so the suite doubles as a theming-contract check. Chromium is downloaded on first use (cached per machine); no Node tooling enters the repo or the shipped app.
+
+## 12. Open questions
 
 1. HEIC/HEIF from iPhones: convert server-side (needs libheif; check licence) or ask guests to upload JPEG?
 2. Video: transcode to a web-friendly H.264 preview? (CPU heavy; make it optional.)
