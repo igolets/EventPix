@@ -42,6 +42,11 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
         run: |
-          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"igolets_EventPix" /o:"igolets" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" "/d:sonar.issue.ignore.multicriteria=e1" "/d:sonar.issue.ignore.multicriteria.e1.ruleKey=Web:S6850" "/d:sonar.issue.ignore.multicriteria.e1.resourceKey=**/templates.html"
-          dotnet build
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"igolets_EventPix" /o:"igolets" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" "/d:sonar.issue.ignore.multicriteria=e1" "/d:sonar.issue.ignore.multicriteria.e1.ruleKey=Web:S6850" "/d:sonar.issue.ignore.multicriteria.e1.resourceKey=**/templates.html" "/d:sonar.cs.vscoveragexml.reportsPaths=${{ github.workspace }}\coverage.xml" "/d:sonar.exclusions=**/Migrations/**"
+          dotnet build --no-incremental
+          dotnet test --no-build --collect:"Code Coverage" --results-directory "${{ github.workspace }}\TestResults"
+          # Convert the binary .coverage report(s) into the XML format SonarQube Cloud reads.
+          $codeCoverage = (Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022" -Recurse -Filter CodeCoverage.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $codeCoverage) { throw "CodeCoverage.exe not found on the runner." }
+          & $codeCoverage analyze /output:"${{ github.workspace }}\coverage.xml" @(Get-ChildItem "${{ github.workspace }}\TestResults" -Recurse -Filter *.coverage | ForEach-Object FullName)
           ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"

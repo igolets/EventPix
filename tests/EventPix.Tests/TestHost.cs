@@ -152,9 +152,15 @@ internal sealed class CapturingLoggerProvider : ILoggerProvider
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
+            var line = formatter(state, exception);
+            if (exception is not null)
+            {
+                line += "\n" + exception;
+            }
+
             lock (owner.Lines)
             {
-                owner.Lines.Add(formatter(state, exception));
+                owner.Lines.Add(line);
             }
         }
     }

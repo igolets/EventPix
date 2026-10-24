@@ -118,6 +118,15 @@ public sealed class MediaPipelineTests
         Assert.Equal(default, VideoProbe.Parse("not json at all"));
         Assert.Equal(default, VideoProbe.Parse("""{"format":{"duration":"abc"}}"""));
     }
+
+    [Fact]
+    public async Task VideoProbe_ProbeAsync_Disabled_ReturnsNull()
+    {
+        var probe = new VideoProbe(
+            Microsoft.Extensions.Options.Options.Create(new EventPix.Web.Configuration.EventPixOptions { FfprobePath = "" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VideoProbe>.Instance);
+        Assert.Null(await probe.ProbeAsync("clip.mp4", CancellationToken.None));
+    }
 }
 
 /// <summary>Builds small test JPEGs (40x20, red left / blue right) with a hand-crafted EXIF APP1 segment.</summary>

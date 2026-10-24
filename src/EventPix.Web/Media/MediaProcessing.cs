@@ -67,14 +67,16 @@ internal sealed class MediaProcessingWorker(
 
         if (item.Kind == MediaKind.Photo)
         {
-            await using var src = storage.OpenRead(item.StorageKey + "/original");
+            var originalKey = item.StorageKey + "/original";
+            await using var src = storage.OpenRead(originalKey);
             var v = ImageVariants.Create(src) ?? throw new InvalidDataException("Unreadable image.");
             await storage.SaveAsync(item.StorageKey + "/thumb.jpg", new MemoryStream(v.Thumb), ct);
             await storage.SaveAsync(item.StorageKey + "/preview.jpg", new MemoryStream(v.Preview), ct);
             item.Width = v.Width; item.Height = v.Height;
 
-            src.Position = 0;
-            item.TakenUtc = ExifReader.ReadTakenUtc(src)?.UtcDateTime;   // photos only: EXIF lives in JPEGs
+            // SKCodec owns and closes the stream it wraps, so the EXIF pass needs a fresh read handle.
+            await using var exif = storage.OpenRead(originalKey);
+            item.TakenUtc = ExifReader.ReadTakenUtc(exif)?.UtcDateTime;   // photos only: EXIF lives in JPEGs
         }
         else
         {
