@@ -1,0 +1,30 @@
+# Put a reverse proxy (nginx, Caddy, Traefik...) in front for HTTPS.
+services:
+  eventpix:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"        # only the local proxy can reach it
+    environment:
+      EventPix__PublicBaseUrl: "https://photos.example.com"
+      EventPix__TrustForwardedHeaders: "true"   # safe ONLY because the port is bound to localhost
+      Smtp__Host: "smtp.example.com"
+      Smtp__Port: "587"
+      Smtp__User: "user"
+      Smtp__Password: "change-me"       # prefer Docker secrets / env file outside git
+      Smtp__From: "EventPix <no-reply@example.com>"
+      # Telegram__BotToken: ""
+      # To use a custom theme: mount it and switch
+      # EventPix__ThemesPath: "/themes"
+      # EventPix__ActiveTheme: "my-theme"
+    volumes:
+      - eventpix-data:/data            # SQLite + data-protection keys + pepper (back up!)
+      - eventpix-media:/media          # photos and videos, kept apart from code
+      # - ./my-themes:/themes:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+volumes:
+  eventpix-data:
+  eventpix-media:

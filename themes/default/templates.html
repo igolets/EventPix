@@ -1,0 +1,79 @@
+<!-- Templates required by the EventPix core. Keep every data-ref / data-tpl name; restyle and restructure freely.
+     Rules: no inline <script>, no inline style="" attributes, no external hosts (a strict CSP is enforced). -->
+
+<template data-tpl="login">
+  <main class="login">
+    <section class="card">
+      <p class="eyebrow">You are invited</p>
+      <h1 data-ref="event-name"></h1>
+      <p class="muted" data-ref="event-description"></p>
+      <form data-ref="email-form" class="stack">
+        <label for="email">Your e-mail</label>
+        <input id="email" data-ref="email" type="email" autocomplete="email" required placeholder="you@example.com">
+        <button class="btn btn-primary" type="submit">Send me a code</button>
+      </form>
+      <form data-ref="code-form" class="stack">
+        <label for="code">Enter the 6-digit code we e-mailed you</label>
+        <input id="code" data-ref="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+        <button class="btn btn-primary" type="submit">View the album</button>
+      </form>
+      <p class="error" data-ref="message" role="alert"></p>
+    </section>
+  </main>
+</template>
+
+<template data-tpl="gallery">
+  <div class="shell">
+    <header class="topbar">
+      <h1 data-ref="event-name"></h1>
+      <div class="actions">
+        <label class="btn btn-primary">Add photos &amp; videos
+          <input data-ref="upload-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" multiple hidden>
+        </label>
+        <button class="btn" data-ref="subscribe" type="button">Notify me</button>
+        <button class="btn btn-ghost" data-ref="signout" type="button">Sign out</button>
+      </div>
+    </header>
+    <nav class="tabs" data-ref="tabs" role="tablist" aria-label="Albums"></nav>
+    <section class="toolbar">
+      <a class="btn btn-ghost" data-ref="download-tab" href="#">Download this tab</a>
+      <a class="btn btn-ghost" data-ref="download-starred" href="#">Download starred ★</a>
+      <a class="btn btn-ghost" data-ref="download-all" href="#">Download everything</a>
+      <span class="muted" data-ref="status" role="status"></span>
+    </section>
+    <main>
+      <p class="empty muted" data-ref="empty">Nothing here yet. Be the first to add something!</p>
+      <div class="grid" data-ref="grid"></div>
+    </main>
+  </div>
+</template>
+
+<template data-tpl="tab">
+  <button class="tab" role="tab" aria-selected="false"><span data-ref="label"></span> <span class="pill" data-ref="count"></span></button>
+</template>
+
+<template data-tpl="tile">
+  <figure class="tile">
+    <button class="tile-open" data-ref="open" type="button" aria-label="Open"><img data-ref="image" loading="lazy" decoding="async" alt=""><span class="play" aria-hidden="true">▶</span></button>
+    <button class="tile-star" data-ref="star" type="button" aria-label="Star">★</button>
+  </figure>
+</template>
+
+<template data-tpl="lightbox">
+  <div class="lightbox" role="dialog" aria-modal="true">
+    <div class="lb-stage" data-ref="stage"></div>
+    <button class="lb-btn lb-prev" data-ref="prev" aria-label="Previous">‹</button>
+    <button class="lb-btn lb-next" data-ref="next" aria-label="Next">›</button>
+    <div class="lb-bar">
+      <span class="lb-caption" data-ref="caption"></span>
+      <button class="lb-btn lb-star" data-ref="star" aria-label="Star">★</button>
+      <a class="lb-btn" data-ref="download" href="#" aria-label="Download">⬇</a>
+      <button class="lb-btn" data-ref="fullscreen" aria-label="Full screen">⛶</button>
+      <button class="lb-btn" data-ref="close" aria-label="Close">✕</button>
+    </div>
+  </div>
+</template>
+
+<template data-tpl="not-found">
+  <main class="login"><section class="card"><h1>Nothing here</h1><p class="muted">This link is not valid.</p></section></main>
+</template>

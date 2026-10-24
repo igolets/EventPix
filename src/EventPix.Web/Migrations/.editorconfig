@@ -1,0 +1,6 @@
+# EF Core migrations are machine-managed generated code (dotnet ef regenerates them);
+# they are exempt from the analyzer/style contract that applies to hand-written code.
+[*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.IDE0161.severity = none

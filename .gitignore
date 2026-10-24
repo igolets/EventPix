@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+data/
+media/
+*.db
+*.db-shm
+*.db-wal
+pepper.key
+keys/
+publish/
+.env
