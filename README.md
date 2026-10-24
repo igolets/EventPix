@@ -1,5 +1,9 @@
 # EventPix
 
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=igolets_EventPix&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=igolets_EventPix)
+[![.NET](https://github.com/igolets/EventPix/actions/workflows/dotnet.yml/badge.svg)](https://github.com/igolets/EventPix/actions/workflows/dotnet.yml)
+[![CodeQL](https://github.com/igolets/EventPix/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/igolets/EventPix/actions/workflows/github-code-scanning/codeql)
+
 Self-hosted, private photo & video sharing for one-off events (weddings, graduations, anniversaries).
 Share a hidden link, guests sign in with an emailed code, browse tabs, upload to their own tab,
 star favourites and download files, tabs, the whole library, or just the starred ones as a ZIP.
