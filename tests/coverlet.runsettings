@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Coverage settings for the SonarQube Cloud scan: coverlet collector emits OpenCover XML,
+     which SonarScanner for .NET imports via sonar.cs.opencover.reportsPaths. -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>opencover</Format>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
