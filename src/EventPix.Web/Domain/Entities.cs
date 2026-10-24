@@ -36,6 +36,15 @@ internal sealed class Member
     public DateTime? LastSeenUtc { get; set; }
 }
 
+/// <summary>A pre-registered e-mail for InviteOnly events. Becomes a Member on first sign-in.</summary>
+internal sealed class Invite
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid EventId { get; set; }
+    public required string Email { get; set; }          // normalised, lower-case
+    public DateTime CreatedUtc { get; set; }
+}
+
 /// <summary>A named tab: either an event part ("Ceremony") or a person's own uploads.</summary>
 internal sealed class Tab
 {

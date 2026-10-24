@@ -16,7 +16,7 @@ flowchart LR
   K --> E[Endpoints: tabs, media, download, stars, subscriptions]
   E --> DB[(SQLite<br/>/data)]
   E --> S[IMediaStorage<br/>/media]
-  K -->|enqueue| Q[MediaQueue] --> W[MediaProcessingWorker<br/>Skia + ffmpeg process]
+  K -->|enqueue| Q[MediaQueue] --> W[MediaProcessingWorker<br/>Skia + ffmpeg/ffprobe processes]
   W --> S
   W --> DB
   N[NotificationWorker] --> DB
@@ -34,7 +34,8 @@ Single deployable. No external queue, cache or object store. Replace `IMediaStor
   `rotate-token` invalidates a leaked link.
 * The link alone shows only the event name and a login box. Content needs a **session**.
 * Login: guest enters e-mail -> 6-digit code (HMAC-hashed with a server pepper, 10 min, 5 attempts, 3 codes/10 min)
-  -> HttpOnly SameSite=Lax cookie holding `mid` (member) and `eid` (event). `InviteOnly` events accept only pre-registered e-mails.
+  -> HttpOnly SameSite=Lax cookie holding `mid` (member) and `eid` (event). `InviteOnly` events accept only
+  e-mails on the invite list (owner-managed via `/invites` or `add-invites`) or already-existing members.
 * Every `/api/e/{token}/...` request re-resolves the event from the token **and** checks `eid == event.Id`,
   so a session for event A cannot read event B.
 * Responses never reveal whether an e-mail is known (always 202).
@@ -45,6 +46,7 @@ Single deployable. No external queue, cache or object store. Replace `IMediaStor
 ```mermaid
 erDiagram
   EVENT ||--o{ MEMBER : has
+  EVENT ||--o{ INVITE : pre-registers
   EVENT ||--o{ TAB : has
   EVENT ||--o{ MEDIAITEM : has
   EVENT ||--o{ LOGINCODE : issues
@@ -57,6 +59,7 @@ erDiagram
   TAB }o--o| MEMBER : "owned by (Author tabs)"
   EVENT { guid Id PK  string Name  string TokenHash UK  string TokenProtected  string OwnerEmail  bool InviteOnly  bool UploadsOpen  bool DownloadsOpen }
   MEMBER { guid Id PK  guid EventId FK  string Email  string DisplayName  enum Role }
+  INVITE { guid Id PK  guid EventId FK  string Email UK-per-event  datetime CreatedUtc }
   TAB { guid Id PK  guid EventId FK  string Name  enum Kind  int SortOrder  guid OwnerMemberId  bool AllowGuestUploads }
   MEDIAITEM { guid Id PK  guid EventId FK  guid TabId FK  guid UploaderId FK  enum Kind  enum Status  string OriginalFileName  string ContentType  long SizeBytes  string Sha256  string StorageKey  datetime TakenUtc  datetime NotifiedUtc }
   STAR { guid MemberId PK  guid MediaId PK }
@@ -93,22 +96,31 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | POST `/auth/logout` | no | Clear cookie |
 | GET `/me`, PUT `/me` | session | Profile |
 | GET `/tabs`; POST `/tabs` | session; owner | List (counts, canUpload) / create section |
+| PATCH `/tabs/{id}` `{name?, allowGuestUploads?}` | owner | Rename section / toggle guest uploads (author tabs keep the guest's display name) |
+| PUT `/tabs/order` `{ids}` | owner | Reorder section tabs (listed order first, then the rest) |
+| DELETE `/tabs/{id}` | owner | Remove tab + its media rows + blobs |
 | GET `/tabs/{id}/media?skip&take` | session | Page of items (with `starred`) |
+| GET/POST/DELETE `/invites` | owner | Invite list for InviteOnly events (add pre-registered e-mails, see who joined) |
 | GET `/media/{id}/{thumb\|preview\|original}[?download=true]` | session | Bytes. Original supports HTTP Range for video |
 | POST `/uploads[?tab=id]` multipart `files` | session | Upload; default = own tab |
 | DELETE `/media/{id}` | uploader or owner | Remove + blobs |
 | PUT/DELETE `/media/{id}/star` | session | Star / unstar |
 | GET `/download[?tab=id][&starred=true]` | session | Streamed ZIP: file = `/media/..?download`, tab, starred, or everything |
 | GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings |
-| POST `/api/unsubscribe/{id}/{sig}` | HMAC link | One-click unsubscribe |
+| POST `/api/unsubscribe/{id}/{sig}` | HMAC link | One-click unsubscribe (valid sig is always 204, even if already gone) |
+| GET `/u/{id}.{sig}` | HMAC link | Unsubscribe page: theme shell + core JS confirming via the API above |
 
 State-changing calls require header `X-Requested-With: eventpix` (CSRF defence together with SameSite=Lax).
 
 ## 7. Pipelines
 
 **Upload**: multipart -> sniff magic bytes (reject unknown/SVG/HTML) -> SHA-256 -> dedupe per tab -> save original
--> row `Processing` -> `MediaQueue` -> worker makes thumb/preview (Skia; ffmpeg frame for video) -> `Ready`.
-Unfinished rows are re-queued on start-up.
+-> row `Processing` -> `MediaQueue` -> worker makes thumb/preview -> `Ready`.
+Photos: Skia resizes **after applying the EXIF orientation** (`SKCodec.EncodedOrigin`), so variants are stored upright
+and `Width`/`Height` are the displayed dimensions; capture time comes from EXIF `DateTimeOriginal`
+(+ `OffsetTimeOriginal`; without an offset the wall time is treated as UTC). JPEG only.
+Videos: ffmpeg grabs a frame for the variants; ffprobe fills `DurationSeconds` and `TakenUtc` from the container's
+`creation_time`. Missing metadata simply stays null. Unfinished rows are re-queued on start-up.
 
 **ZIP**: query items -> `ZipArchive.CreateAsync` over the response body -> copy each original with `NoCompression`.
 No temp files; memory is constant. Entries are `Tab/File.ext`, de-duplicated.
@@ -121,10 +133,12 @@ A new channel = one class implementing `INotificationChannel` + one DI line.
 
 Core JS has no markup/styling. A theme folder provides:
 * `index.html`: shell that loads `/theme/theme.css` and `/app/app.js`, has `<div id="app">`.
-* `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `not-found`.
+* `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `unsubscribe`, `not-found`.
 * `theme.css` and any assets (`/theme/<file>`).
 
 Hooks: `data-ref="..."` marks elements the core fills or wires (see the default theme for the full list).
+The `unsubscribe` template needs `data-ref="title"` and `data-ref="message"`; the core confirms the unsubscribe
+by POSTing to `/api/unsubscribe/{id}/{sig}` and writes the outcome via `textContent`.
 State is exposed to CSS as attributes: `data-kind="photo|video|section|author"`, `data-starred="true|false"`,
 `aria-selected` on tabs, `--ratio` custom property on tiles.
 The core only writes text via `textContent`. CSP forbids inline script/style and remote hosts, so ship fonts and images inside the theme folder.

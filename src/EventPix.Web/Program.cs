@@ -49,6 +49,7 @@ builder.Services.AddSingleton<EventTokenService>();
 builder.Services.AddSingleton<IMediaStorage, FileSystemMediaStorage>();
 builder.Services.AddSingleton<MediaQueue>();
 builder.Services.AddSingleton<VideoFrameExtractor>();
+builder.Services.AddSingleton<VideoProbe>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddHostedService<MediaProcessingWorker>();
 builder.Services.AddHostedService<NotificationWorker>();
@@ -164,7 +165,8 @@ app.UseRateLimiter();
 app.MapGet("/robots.txt", () => Results.Text("User-agent: *\nDisallow: /\n"));
 app.MapGet("/e/{token}", (string token) =>                       // SPA shell supplied by the theme
     Results.File(Path.Combine(themeDir, "index.html"), "text/html"));
-app.MapGet("/u/{token}", () => Results.File(Path.Combine(themeDir, "index.html"), "text/html")); // TODO: unsubscribe view in core JS
+// Unsubscribe page /u/{id}.{sig}: core JS renders the theme's "unsubscribe" template and calls the API below.
+app.MapGet("/u/{token}", () => Results.File(Path.Combine(themeDir, "index.html"), "text/html"));
 
 var open = app.MapGroup("/api/e/{token}").WithEventScope(requireMember: false);
 AuthEndpoints.Map(open);
@@ -174,6 +176,7 @@ TabsEndpoints.Map(api);
 MediaEndpoints.Map(api);
 DownloadEndpoints.Map(api);
 SubscriptionEndpoints.Map(api);
+InviteEndpoints.Map(api);
 SubscriptionEndpoints.MapUnsubscribe(app);
 
 await app.RunAsync();

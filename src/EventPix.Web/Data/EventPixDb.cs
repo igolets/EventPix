@@ -7,6 +7,7 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
 {
     public DbSet<Event> Events => Set<Event>();
     public DbSet<Member> Members => Set<Member>();
+    public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<Tab> Tabs => Set<Tab>();
     public DbSet<MediaItem> MediaItems => Set<MediaItem>();
     public DbSet<Star> Stars => Set<Star>();
@@ -27,6 +28,13 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
             m.Property(x => x.DisplayName).HasMaxLength(100);
             m.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
             m.HasIndex(x => new { x.EventId, x.Email }).IsUnique();
+        });
+
+        b.Entity<Invite>(i =>
+        {
+            i.Property(x => x.Email).HasMaxLength(254);
+            i.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+            i.HasIndex(x => new { x.EventId, x.Email }).IsUnique();
         });
 
         b.Entity<Tab>(t =>

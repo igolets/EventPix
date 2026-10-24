@@ -7,4 +7,10 @@ internal static partial class Log
 
     [LoggerMessage(LogLevel.Warning, "ffmpeg not found at '{Path}'; video thumbnails disabled.")]
     internal static partial void FfmpegMissing(this ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(LogLevel.Warning, "ffprobe not found or failed at '{Path}'; video metadata disabled.")]
+    internal static partial void FfprobeFailed(this ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(LogLevel.Warning, "ffprobe timed out for '{Path}'.")]
+    internal static partial void ProbeTimeout(this ILogger logger, string path);
 }

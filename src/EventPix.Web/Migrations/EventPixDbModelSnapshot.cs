@@ -15,7 +15,7 @@ namespace EventPix.Web.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
             modelBuilder.Entity("EventPix.Web.Domain.Event", b =>
                 {
@@ -61,6 +61,31 @@ namespace EventPix.Web.Migrations
                         .IsUnique();
 
                     b.ToTable("Events");
+                });
+
+            modelBuilder.Entity("EventPix.Web.Domain.Invite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId", "Email")
+                        .IsUnique();
+
+                    b.ToTable("Invites");
                 });
 
             modelBuilder.Entity("EventPix.Web.Domain.LoginCode", b =>
@@ -299,6 +324,15 @@ namespace EventPix.Web.Migrations
                     b.HasIndex("EventId", "SortOrder");
 
                     b.ToTable("Tabs");
+                });
+
+            modelBuilder.Entity("EventPix.Web.Domain.Invite", b =>
+                {
+                    b.HasOne("EventPix.Web.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("EventPix.Web.Domain.LoginCode", b =>

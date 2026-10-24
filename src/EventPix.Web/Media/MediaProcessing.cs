@@ -50,6 +50,7 @@ internal sealed class MediaProcessingWorker(
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
         var storage = scope.ServiceProvider.GetRequiredService<IMediaStorage>();
         var video = scope.ServiceProvider.GetRequiredService<VideoFrameExtractor>();
+        var probe = scope.ServiceProvider.GetRequiredService<VideoProbe>();
 
         var item = await db.MediaItems.FirstOrDefaultAsync(m => m.Id == id, ct);
         if (item is null || item.Status != MediaStatus.Processing)
@@ -64,6 +65,9 @@ internal sealed class MediaProcessingWorker(
             await storage.SaveAsync(item.StorageKey + "/thumb.jpg", new MemoryStream(v.Thumb), ct);
             await storage.SaveAsync(item.StorageKey + "/preview.jpg", new MemoryStream(v.Preview), ct);
             item.Width = v.Width; item.Height = v.Height;
+
+            src.Position = 0;
+            item.TakenUtc = ExifReader.ReadTakenUtc(src)?.UtcDateTime;   // photos only: EXIF lives in JPEGs
         }
         else
         {
@@ -87,7 +91,13 @@ internal sealed class MediaProcessingWorker(
                         item.Width = r.Width; item.Height = r.Height;
                     }
                 }
-                // TODO: ffprobe for duration.
+
+                var info = await probe.ProbeAsync(tmp, ct);   // duration + capture time from container metadata
+                if (info is { } vi)
+                {
+                    item.DurationSeconds = vi.Duration?.TotalSeconds;
+                    item.TakenUtc = vi.CreatedUtc?.UtcDateTime;
+                }
             }
             finally
             {

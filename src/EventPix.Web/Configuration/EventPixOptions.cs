@@ -14,6 +14,7 @@ internal sealed class EventPixOptions
     public string PublicBaseUrl { get; set; } = "http://localhost:5000";
     public long MaxUploadBytes { get; set; } = 2L * 1024 * 1024 * 1024;
     public string? FfmpegPath { get; set; } = "ffmpeg";
+    public string? FfprobePath { get; set; } = "ffprobe";
     public int OtpMinutes { get; set; } = 10;
     public int NotifyDebounceMinutes { get; set; } = 5;
     /// <summary>Honour X-Forwarded-*. Enable only when the app is reachable exclusively through your proxy.</summary>

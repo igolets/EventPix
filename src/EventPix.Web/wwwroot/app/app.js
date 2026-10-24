@@ -160,8 +160,31 @@ function openLightbox(index) {
   show(index);
 }
 
+// ---- unsubscribe --------------------------------------------------------------------------------------------
+// One-click unsubscribe page: /u/{subscriptionId}.{hmac}. Confirms by POSTing to the API, then shows the result.
+async function showUnsubscribe() {
+  const view = tpl('unsubscribe');
+  const message = ref(view, 'message');
+  text(view, 'title', 'Unsubscribe');
+  mount(view);
+
+  const seg = location.pathname.split('/')[2] || '';
+  const dot = seg.indexOf('.');
+  if (dot <= 0) { message.textContent = 'This link is not valid.'; return; }
+
+  const res = await fetch(`/api/unsubscribe/${encodeURIComponent(seg.slice(0, dot))}/${encodeURIComponent(seg.slice(dot + 1))}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'eventpix' },
+  });
+  message.textContent = res.ok
+    ? 'You have been unsubscribed. You will not receive any more notifications for this album.'
+    : 'This link is not valid or you are already unsubscribed.';
+}
+
 // ---- boot ------------------------------------------------------------------------------------------------------
 async function start() {
+  if (location.pathname.startsWith('/u/')) return showUnsubscribe();
   const pub = await api('/public');
   if (!pub.ok) { mount(tpl('not-found')); return; }          // same page for "wrong link" as for anything else
   const info = await pub.json();

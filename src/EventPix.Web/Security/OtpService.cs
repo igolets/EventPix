@@ -22,7 +22,8 @@ internal sealed class OtpService(
     /// <summary>Never reveals whether the e-mail is known; callers always answer 202.</summary>
     public async Task RequestAsync(Event ev, string email, CancellationToken ct)
     {
-        var known = await db.Members.AnyAsync(m => m.EventId == ev.Id && m.Email == email, ct);
+        var known = await db.Members.AnyAsync(m => m.EventId == ev.Id && m.Email == email, ct) ||
+                    await db.Invites.AnyAsync(i => i.EventId == ev.Id && i.Email == email, ct);
         if (!known && ev.InviteOnly)
         {
             return;
@@ -72,7 +73,8 @@ internal sealed class OtpService(
         var member = await db.Members.FirstOrDefaultAsync(m => m.EventId == ev.Id && m.Email == email, ct);
         if (member is null)
         {
-            if (ev.InviteOnly) { await db.SaveChangesAsync(ct); return null; }
+            var invited = await db.Invites.AnyAsync(i => i.EventId == ev.Id && i.Email == email, ct);
+            if (ev.InviteOnly && !invited) { await db.SaveChangesAsync(ct); return null; }
             member = new Member
             {
                 EventId = ev.Id,
