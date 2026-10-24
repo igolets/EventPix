@@ -17,8 +17,11 @@ namespace EventPix.Tests;
 /// Shared in-memory host for integration tests: temp SQLite DB, pepper, storage dir, capturing logger.
 /// Dev mail (LogEmailSender) prints OTP codes to the log, where they can be captured.
 /// </summary>
-internal sealed class TestApp : IDisposable
+internal sealed partial class TestApp : IDisposable
 {
+    [GeneratedRegex(@"to (?<to>[^:]+):.*?Your code: (?<code>\d{6})", RegexOptions.Singleline, 250)]
+    private static partial Regex CodeLine();
+
     public TestAppFactory Factory { get; } = new();
 
     public HttpClient CreateClient()
@@ -65,15 +68,14 @@ internal sealed class TestApp : IDisposable
 
     private async Task<string> WaitForCodeAsync(string email)
     {
-        var rx = new Regex(Regex.Escape($"to {email}:") + ".*?Your code: (\\d{6})", RegexOptions.Singleline);
         for (var i = 0; i < 50; i++)
         {
             foreach (var line in Factory.Logs.Lines)
             {
-                var match = rx.Match(line);
-                if (match.Success)
+                var match = CodeLine().Match(line);
+                if (match.Success && match.Groups["to"].Value == email)
                 {
-                    return match.Groups[1].Value;
+                    return match.Groups["code"].Value;
                 }
             }
 
@@ -83,7 +85,10 @@ internal sealed class TestApp : IDisposable
         throw new InvalidOperationException($"No OTP logged for {email}.");
     }
 
-    public void Dispose() => Factory.Dispose();
+    public void Dispose()
+    {
+        Factory.Dispose();
+    }
 }
 
 internal sealed class TestAppFactory : WebApplicationFactory<Program>
@@ -125,15 +130,24 @@ internal sealed class CapturingLoggerProvider : ILoggerProvider
 {
     public List<string> Lines { get; } = [];
 
-    public ILogger CreateLogger(string categoryName) => new Capturing(this);
+    public ILogger CreateLogger(string categoryName)
+    {
+        return new Capturing(this);
+    }
 
     public void Dispose() { }
 
     private sealed class Capturing(CapturingLoggerProvider owner) : ILogger
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+        {
+            return null;
+        }
 
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return logLevel >= LogLevel.Information;
+        }
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
             Func<TState, Exception?, string> formatter)

@@ -97,7 +97,7 @@ builder.Services.AddRateLimiter(r =>
 
 // ---- theme ---------------------------------------------------------------------------------------
 var themeName = opts.ActiveTheme;
-if (!System.Text.RegularExpressions.Regex.IsMatch(themeName, "^[A-Za-z0-9_-]+$"))
+if (!ThemeName.Valid().IsMatch(themeName))
 {
     throw new InvalidOperationException("EventPix:ActiveTheme may only contain letters, digits, '-' and '_'.");
 }
@@ -131,9 +131,9 @@ if (opts.TrustForwardedHeaders)
 app.Use((ctx, next) =>
 {
     var h = ctx.Response.Headers;
-    h["Content-Security-Policy"] = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; " +
+    h.ContentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; " +
         "media-src 'self' blob:; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
-    h["X-Content-Type-Options"] = "nosniff";
+    h.XContentTypeOptions = "nosniff";
     h["Referrer-Policy"] = "no-referrer";                       // the secret URL must never leak via Referer
     h["X-Robots-Tag"] = "noindex, nofollow, noarchive";
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
@@ -150,7 +150,7 @@ app.Use((ctx, next) =>
 app.Use(async (ctx, next) =>
 {
     if (ctx.Request.Path.StartsWithSegments("/api") && !HttpMethods.IsGet(ctx.Request.Method) &&
-        !HttpMethods.IsHead(ctx.Request.Method) && ctx.Request.Headers["X-Requested-With"] != "eventpix")
+        !HttpMethods.IsHead(ctx.Request.Method) && ctx.Request.Headers.XRequestedWith != "eventpix")
     { ctx.Response.StatusCode = StatusCodes.Status400BadRequest; return; }
     await next();
 });
@@ -163,7 +163,7 @@ app.UseRateLimiter();
 
 // ---- routes -------------------------------------------------------------------------------------------------
 app.MapGet("/robots.txt", () => Results.Text("User-agent: *\nDisallow: /\n"));
-app.MapGet("/e/{token}", (string token) =>                       // SPA shell supplied by the theme
+app.MapGet("/e/{token}", () =>                                   // SPA shell supplied by the theme
     Results.File(Path.Combine(themeDir, "index.html"), "text/html"));
 // Unsubscribe page /u/{id}.{sig}: core JS renders the theme's "unsubscribe" template and calls the API below.
 app.MapGet("/u/{token}", () => Results.File(Path.Combine(themeDir, "index.html"), "text/html"));

@@ -15,9 +15,11 @@ internal static class TabsEndpoints
 {
     private static readonly string[] _blobSuffixes = ["/original", "/thumb.jpg", "/preview.jpg"];
 
-    public static bool CanUploadTo(Event ev, Member me, Tab tab) =>
-        me.Role == MemberRole.Owner ||
+    public static bool CanUploadTo(Event ev, Member me, Tab tab)
+    {
+        return me.Role == MemberRole.Owner ||
         (ev.UploadsOpen && (tab.Kind == TabKind.Author ? tab.OwnerMemberId == me.Id : tab.AllowGuestUploads));
+    }
 
     public static void Map(RouteGroupBuilder g)
     {

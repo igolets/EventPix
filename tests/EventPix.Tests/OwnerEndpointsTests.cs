@@ -25,7 +25,10 @@ public sealed class OwnerEndpointsTests : IDisposable
 
     private readonly TestApp _app = new();
 
-    public void Dispose() => _app.Dispose();
+    public void Dispose()
+    {
+        _app.Dispose();
+    }
 
     [Fact]
     public async Task Owner_Can_Rename_Reorder_Delete_Tab_And_Blobs()
@@ -186,7 +189,10 @@ public sealed class OwnerEndpointsTests : IDisposable
         Assert.False(await db2.Subscriptions.AnyAsync(s => s.Id == subId));
     }
 
-    private static Uri U(string path) => new(path, UriKind.Relative);
+    private static Uri U(string path)
+    {
+        return new(path, UriKind.Relative);
+    }
 
     private async Task<string> AddMediaAsync(Guid eventId, string ownerEmail, Guid tabId)
     {

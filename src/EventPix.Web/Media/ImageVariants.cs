@@ -33,8 +33,10 @@ internal static class ImageVariants
         return Render(oriented);
     }
 
-    private static Result Render(SKBitmap bmp) =>
-        new(bmp.Width, bmp.Height, Encode(bmp, 480, 78), Encode(bmp, 1920, 85));
+    private static Result Render(SKBitmap bmp)
+    {
+        return new(bmp.Width, bmp.Height, Encode(bmp, 480, 78), Encode(bmp, 1920, 85));
+    }
 
     /// <summary>Draws the source through the EXIF transform into an upright bitmap (swapped size for quarter turns).</summary>
     private static SKBitmap Orient(SKBitmap src, SKEncodedOrigin origin)
@@ -52,17 +54,20 @@ internal static class ImageVariants
     /// Maps source pixel (x, y) onto an upright canvas; (w, h) are the SOURCE dimensions.
     /// SkiaSharp's 9-argument constructor takes (scaleX, skewX, transX, skewY, scaleY, transY, persp*).
     /// </summary>
-    internal static SKMatrix MatrixFor(SKEncodedOrigin origin, int w, int h) => origin switch
+    internal static SKMatrix MatrixFor(SKEncodedOrigin origin, int w, int h)
     {
-        SKEncodedOrigin.TopRight => new(-1, 0, w, 0, 1, 0, 0, 0, 1),      // mirror horizontally
-        SKEncodedOrigin.BottomRight => new(-1, 0, w, 0, -1, h, 0, 0, 1),  // rotate 180
-        SKEncodedOrigin.BottomLeft => new(1, 0, 0, 0, -1, h, 0, 0, 1),    // mirror vertically
-        SKEncodedOrigin.LeftTop => new(0, 1, 0, 1, 0, 0, 0, 0, 1),        // transpose
-        SKEncodedOrigin.RightTop => new(0, -1, h, 1, 0, 0, 0, 0, 1),      // rotate 90 CW
-        SKEncodedOrigin.RightBottom => new(0, -1, h, -1, 0, w, 0, 0, 1),  // transverse
-        SKEncodedOrigin.LeftBottom => new(0, 1, 0, -1, 0, w, 0, 0, 1),    // rotate 270 CW
-        _ => SKMatrix.CreateIdentity(),
-    };
+        return origin switch
+        {
+            SKEncodedOrigin.TopRight => new(-1, 0, w, 0, 1, 0, 0, 0, 1),      // mirror horizontally
+            SKEncodedOrigin.BottomRight => new(-1, 0, w, 0, -1, h, 0, 0, 1),  // rotate 180
+            SKEncodedOrigin.BottomLeft => new(1, 0, 0, 0, -1, h, 0, 0, 1),    // mirror vertically
+            SKEncodedOrigin.LeftTop => new(0, 1, 0, 1, 0, 0, 0, 0, 1),        // transpose
+            SKEncodedOrigin.RightTop => new(0, -1, h, 1, 0, 0, 0, 0, 1),      // rotate 90 CW
+            SKEncodedOrigin.RightBottom => new(0, -1, h, -1, 0, w, 0, 0, 1),  // transverse
+            SKEncodedOrigin.LeftBottom => new(0, 1, 0, -1, 0, w, 0, 0, 1),    // rotate 270 CW
+            _ => SKMatrix.CreateIdentity(),
+        };
+    }
 
     private static byte[] Encode(SKBitmap src, int maxEdge, int quality)
     {

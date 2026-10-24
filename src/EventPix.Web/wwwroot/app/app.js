@@ -144,12 +144,19 @@ function openLightbox(index) {
     ref(box, 'download').href = `${base}/media/${m.id}/original?download=true`;
     box.dataset.starred = String(m.starred);
   };
-  const close = () => { box.remove(); document.removeEventListener('keydown', onKey); if (document.fullscreenElement) document.exitFullscreen(); };
+  const close = () => {
+    box.remove();
+    document.removeEventListener('keydown', onKey);
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  };
   const onKey = (e) => { if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') show(state.lightboxIndex + 1); if (e.key === 'ArrowLeft') show(state.lightboxIndex - 1); };
   ref(box, 'close').addEventListener('click', close);
   ref(box, 'prev').addEventListener('click', () => show(state.lightboxIndex - 1));
   ref(box, 'next').addEventListener('click', () => show(state.lightboxIndex + 1));
-  ref(box, 'fullscreen').addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : box.requestFullscreen?.());
+  ref(box, 'fullscreen').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else box.requestFullscreen?.().catch(() => {});
+  });
   ref(box, 'star').addEventListener('click', async () => {
     const m = state.items[state.lightboxIndex];
     const res = await api(`/media/${m.id}/star`, { method: m.starred ? 'DELETE' : 'PUT' });

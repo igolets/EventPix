@@ -12,12 +12,20 @@ namespace EventPix.Web.Security;
 internal static class Tokens
 {
     /// <summary>192 bits of CSPRNG output, base64url (32 chars). Unguessable by design.</summary>
-    public static string NewUrlToken() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(24));
+    public static string NewUrlToken()
+    {
+        return Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(24));
+    }
 
-    public static string Hash(string token) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    public static string Hash(string token)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    }
 
-    public static string NewOtp() => RandomNumberGenerator.GetInt32(1_000_000).ToString("D6");
+    public static string NewOtp()
+    {
+        return RandomNumberGenerator.GetInt32(1_000_000).ToString("D6");
+    }
 
     /// <summary>Returns lower-cased address or null when invalid.</summary>
     public static string? NormalizeEmail(string? raw)
@@ -57,12 +65,16 @@ internal sealed class SecretPepper
         }
     }
 
-    public string Hmac(string data) =>
-        Convert.ToHexString(HMACSHA256.HashData(_key, Encoding.UTF8.GetBytes(data)));
+    public string Hmac(string data)
+    {
+        return Convert.ToHexString(HMACSHA256.HashData(_key, Encoding.UTF8.GetBytes(data)));
+    }
 
-    public bool Verify(string data, string signature) =>
-        CryptographicOperations.FixedTimeEquals(
+    public bool Verify(string data, string signature)
+    {
+        return CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(Hmac(data)), Encoding.UTF8.GetBytes(signature));
+    }
 }
 
 internal sealed class EventTokenService(IDataProtectionProvider provider)
@@ -75,7 +87,13 @@ internal sealed class EventTokenService(IDataProtectionProvider provider)
         return (token, Tokens.Hash(token), _protector.Protect(token));
     }
 
-    public string Reveal(Event ev) => _protector.Unprotect(ev.TokenProtected);
+    public string Reveal(Event ev)
+    {
+        return _protector.Unprotect(ev.TokenProtected);
+    }
 
-    public string Url(Event ev, string publicBaseUrl) => $"{publicBaseUrl.TrimEnd('/')}/e/{Reveal(ev)}";
+    public string Url(Event ev, string publicBaseUrl)
+    {
+        return $"{publicBaseUrl.TrimEnd('/')}/e/{Reveal(ev)}";
+    }
 }

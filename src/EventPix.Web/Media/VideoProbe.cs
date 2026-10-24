@@ -85,13 +85,17 @@ internal sealed class VideoProbe(IOptions<EventPixOptions> options, ILogger<Vide
         }
     }
 
-    internal static TimeSpan? Seconds(string? value) =>
-        double.TryParse(value, CultureInfo.InvariantCulture, out var s) && s is >= 0 and < double.MaxValue
+    internal static TimeSpan? Seconds(string? value)
+    {
+        return double.TryParse(value, CultureInfo.InvariantCulture, out var s) && s is >= 0 and < double.MaxValue
             ? TimeSpan.FromSeconds(s)
             : null;
+    }
 
     /// <summary>ffprobe emits ISO 8601 timestamps, usually already UTC.</summary>
-    internal static DateTimeOffset? ParseTimestamp(string? value) =>
-        DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
+    internal static DateTimeOffset? ParseTimestamp(string? value)
+    {
+        return DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var t) ? t : null;
+    }
 }

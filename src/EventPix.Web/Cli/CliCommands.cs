@@ -16,8 +16,10 @@ namespace EventPix.Web.Cli;
 /// </summary>
 internal static class CliCommands
 {
-    public static bool IsCommand(string[] args) =>
-        args.Length > 0 && args[0] is "create-event" or "list-events" or "rotate-token" or "add-invites";
+    public static bool IsCommand(string[] args)
+    {
+        return args.Length > 0 && args[0] is "create-event" or "list-events" or "rotate-token" or "add-invites";
+    }
 
     public static async Task<int> RunAsync(WebApplication app, string[] args)
     {

@@ -50,9 +50,11 @@ internal sealed class LogEmailSender(ILogger<LogEmailSender> log) : IEmailSender
 internal sealed record NewContentMessage(
     string EventName, string TabName, string UploaderName, int Photos, int Videos, string Url, string UnsubscribeUrl)
 {
-    public string ToText() =>
-        $"{UploaderName} added {Photos} photo(s) and {Videos} video(s) to \"{TabName}\" in {EventName}.\n\n" +
+    public string ToText()
+    {
+        return $"{UploaderName} added {Photos} photo(s) and {Videos} video(s) to \"{TabName}\" in {EventName}.\n\n" +
         $"Open: {Url}\nUnsubscribe: {UnsubscribeUrl}";
+    }
 }
 
 /// <summary>Add a new delivery channel by implementing this and registering it in DI. Nothing else changes.</summary>
@@ -65,8 +67,10 @@ internal interface INotificationChannel
 internal sealed class EmailChannel(IEmailSender sender) : INotificationChannel
 {
     public NotifyChannel Channel => NotifyChannel.Email;
-    public Task SendAsync(string address, NewContentMessage m, CancellationToken ct) =>
-        sender.SendAsync(address, $"New in {m.EventName}", m.ToText(), ct);
+    public Task SendAsync(string address, NewContentMessage m, CancellationToken ct)
+    {
+        return sender.SendAsync(address, $"New in {m.EventName}", m.ToText(), ct);
+    }
 }
 
 /// <summary>Send-only for now. TODO: /start deep-link flow that stores chat ids as confirmed subscriptions.</summary>

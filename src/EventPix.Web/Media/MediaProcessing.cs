@@ -9,8 +9,15 @@ namespace EventPix.Web.Media;
 internal sealed class MediaQueue
 {
     private readonly Channel<Guid> _channel = Channel.CreateUnbounded<Guid>();
-    public ValueTask EnqueueAsync(Guid mediaId) => _channel.Writer.WriteAsync(mediaId);
-    public IAsyncEnumerable<Guid> ReadAllAsync(CancellationToken ct) => _channel.Reader.ReadAllAsync(ct);
+    public ValueTask EnqueueAsync(Guid mediaId)
+    {
+        return _channel.Writer.WriteAsync(mediaId);
+    }
+
+    public IAsyncEnumerable<Guid> ReadAllAsync(CancellationToken ct)
+    {
+        return _channel.Reader.ReadAllAsync(ct);
+    }
 }
 
 /// <summary>Generates thumb/preview variants after upload. Resumes unfinished items on start-up.</summary>

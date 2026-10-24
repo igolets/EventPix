@@ -62,7 +62,8 @@ internal static class SubscriptionEndpoints
     }
 
     /// <summary>One-click unsubscribe from e-mail. Link carries an HMAC so ids can't be forged.</summary>
-    public static void MapUnsubscribe(IEndpointRouteBuilder app) =>
+    public static void MapUnsubscribe(IEndpointRouteBuilder app)
+    {
         app.MapPost("/api/unsubscribe/{id:guid}/{sig}", async (Guid id, string sig, EventPixDb db, SecretPepper pepper, CancellationToken ct) =>
         {
             if (!pepper.Verify("unsub|" + id.ToString("N"), sig))
@@ -73,4 +74,5 @@ internal static class SubscriptionEndpoints
             await db.Subscriptions.Where(s => s.Id == id).ExecuteDeleteAsync(ct);
             return Results.NoContent();
         }).RequireRateLimiting("auth");
+    }
 }

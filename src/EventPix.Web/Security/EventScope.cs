@@ -11,7 +11,10 @@ internal static class EventScopeExtensions
 {
     private const string Key = "eventpix.scope";
 
-    public static EventScope GetScope(this HttpContext c) => (EventScope)c.Items[Key]!;
+    public static EventScope GetScope(this HttpContext c)
+    {
+        return (EventScope)c.Items[Key]!;
+    }
 
     /// <summary>
     /// Resolves {token} to an Event (404 if unknown) and, from the session cookie, the Member of THAT event.

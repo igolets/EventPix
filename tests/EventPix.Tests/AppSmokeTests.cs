@@ -15,7 +15,10 @@ public sealed class AppSmokeTests : IDisposable
 {
     private readonly TestApp _app = new();
 
-    public void Dispose() => _app.Dispose();
+    public void Dispose()
+    {
+        _app.Dispose();
+    }
 
     [Fact]
     public async Task CreateEvent_RequestCode_Verify_ListTabs()

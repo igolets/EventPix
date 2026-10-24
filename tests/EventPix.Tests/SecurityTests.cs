@@ -23,8 +23,10 @@ public class SecurityTests
     [InlineData("  Bob@Example.COM ", "bob@example.com")]
     [InlineData("not-an-email", null)]
     [InlineData("", null)]
-    public void Email_IsNormalised(string input, string? expected) =>
+    public void Email_IsNormalised(string input, string? expected)
+    {
         Assert.Equal(expected, Tokens.NormalizeEmail(input));
+    }
 
     [Fact]
     public void Storage_RejectsPathTraversal()

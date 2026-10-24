@@ -63,10 +63,15 @@ internal sealed class FileSystemMediaStorage : IMediaStorage
         }
     }
 
-    public Stream OpenRead(string key) =>
-        new FileStream(Resolve(key), FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+    public Stream OpenRead(string key)
+    {
+        return new FileStream(Resolve(key), FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+    }
 
-    public bool Exists(string key) => File.Exists(Resolve(key));
+    public bool Exists(string key)
+    {
+        return File.Exists(Resolve(key));
+    }
 
     public Task DeleteAsync(string key, CancellationToken ct)
     {

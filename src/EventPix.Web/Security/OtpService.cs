@@ -17,7 +17,10 @@ internal sealed class OtpService(
     private const int MaxAttempts = 5;
     private const int MaxCodesPer10Min = 3;
 
-    private string Hash(Event ev, string email, string code) => pepper.Hmac($"{ev.Id:N}|{email}|{code}");
+    private string Hash(Event ev, string email, string code)
+    {
+        return pepper.Hmac($"{ev.Id:N}|{email}|{code}");
+    }
 
     /// <summary>Never reveals whether the e-mail is known; callers always answer 202.</summary>
     public async Task RequestAsync(Event ev, string email, CancellationToken ct)

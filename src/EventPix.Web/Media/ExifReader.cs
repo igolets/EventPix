@@ -34,9 +34,12 @@ internal static class ExifReader
         return ReadTakenUtc(head.AsSpan(0, total));
     }
 
-    internal static DateTimeOffset? ReadTakenUtc(ReadOnlySpan<byte> head) => Read(head) is { } exif
+    internal static DateTimeOffset? ReadTakenUtc(ReadOnlySpan<byte> head)
+    {
+        return Read(head) is { } exif
         ? ParseTakenUtc(exif.DateTimeOriginal ?? exif.DateTimeDigitized, exif.OffsetTimeOriginal)
         : null;
+    }
 
     internal static ExifData? Read(ReadOnlySpan<byte> head)
     {
@@ -89,9 +92,11 @@ internal static class ExifReader
         return -1;
     }
 
-    private static bool HasExifHeader(ReadOnlySpan<byte> segment) =>
-        segment.Length >= 6 && segment[0] is (byte)'E' && segment[1] is (byte)'x' && segment[2] is (byte)'i'
+    private static bool HasExifHeader(ReadOnlySpan<byte> segment)
+    {
+        return segment.Length >= 6 && segment[0] is (byte)'E' && segment[1] is (byte)'x' && segment[2] is (byte)'i'
         && segment[3] is (byte)'f' && segment[4] == 0 && segment[5] == 0;
+    }
 
     private static ExifData? ParseTiff(ReadOnlySpan<byte> t)
     {
@@ -218,14 +223,17 @@ internal static class ExifReader
         return Encoding.ASCII.GetString(text);
     }
 
-    private static uint TypeSize(ushort type) => type switch
+    private static uint TypeSize(ushort type)
     {
-        1 or 2 or 6 or 7 => 1,      // byte / ascii / sbyte / undefined
-        3 or 8 => 2,                // short
-        4 or 9 or 11 => 4,          // long / slong / float
-        5 or 10 or 12 => 8,         // rational / srational / double
-        _ => 0,                     // unknown: treated as inline (size 0), value never dereferenced
-    };
+        return type switch
+        {
+            1 or 2 or 6 or 7 => 1,      // byte / ascii / sbyte / undefined
+            3 or 8 => 2,                // short
+            4 or 9 or 11 => 4,          // long / slong / float
+            5 or 10 or 12 => 8,         // rational / srational / double
+            _ => 0,                     // unknown: treated as inline (size 0), value never dereferenced
+        };
+    }
 
     public static DateTimeOffset? ParseTakenUtc(string? exifTime, string? offsetTime)
     {
@@ -255,10 +263,14 @@ internal static class ExifReader
         return s[0] == '-' ? -offset : offset;
     }
 
-    private static int U16(ReadOnlySpan<byte> b, int pos, bool le) =>
-        le ? b[pos] | (b[pos + 1] << 8) : (b[pos] << 8) | b[pos + 1];
+    private static int U16(ReadOnlySpan<byte> b, int pos, bool le)
+    {
+        return le ? b[pos] | (b[pos + 1] << 8) : (b[pos] << 8) | b[pos + 1];
+    }
 
-    private static int U32(ReadOnlySpan<byte> b, int pos, bool le) =>
-        le ? b[pos] | (b[pos + 1] << 8) | (b[pos + 2] << 16) | (b[pos + 3] << 24)
+    private static int U32(ReadOnlySpan<byte> b, int pos, bool le)
+    {
+        return le ? b[pos] | (b[pos + 1] << 8) | (b[pos + 2] << 16) | (b[pos + 3] << 24)
            : (b[pos] << 24) | (b[pos + 1] << 16) | (b[pos + 2] << 8) | b[pos + 3];
+    }
 }
