@@ -3,12 +3,14 @@ obj/
 .vs/
 .idea/
 *.user
-data/
-media/
+# Anchored to the repo root: runtime data lives here, while source folders
+# like src/EventPix.Web/Data/ must never be ignored (git is case-insensitive on Windows).
+/data/
+/media/
+/keys/
+/publish/
 *.db
 *.db-shm
 *.db-wal
 pepper.key
-keys/
-publish/
 .env
