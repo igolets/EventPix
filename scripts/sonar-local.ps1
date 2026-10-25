@@ -29,6 +29,7 @@ if (Test-Path $reports) { Remove-Item $reports -Recurse -Force }
     /k:"igolets_EventPix" /o:"igolets" /d:sonar.token="$env:SONAR_TOKEN" `
     "/d:sonar.cs.opencover.reportsPaths=$reports/**/coverage.opencover.xml" `
     '/d:sonar.exclusions=**/Migrations/**' `
+    '/d:sonar.cpd.exclusions=**/themes/**/templates.html' `
     '/d:sonar.coverage.exclusions=**/wwwroot/**'
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

@@ -22,6 +22,9 @@ h1, .display, .sub-display { font-family: var(--serif); font-weight: 400; letter
 .act:hover { border-color: var(--mark); color: var(--mark); }
 .act.ghost { border-color: transparent; color: var(--dim); }
 .act.ghost:hover { color: var(--mark); border-color: var(--line2); }
+.act.danger { color: var(--bad); }
+.act.danger:hover { border-color: var(--bad); color: var(--bad); }
+.spread { display: flex; justify-content: space-between; gap: .8rem; }
 input[type=email], input:not([type]), select { width: 100%; padding: .7rem .9rem; background: var(--paper);
   border: 1px solid var(--line2); color: var(--word); font: inherit; }
 :focus-visible { outline: 1px solid var(--mark); outline-offset: 3px; }

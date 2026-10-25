@@ -377,6 +377,10 @@ namespace EventPix.Web.Migrations
 
                     b.HasIndex("EventId", "SortOrder");
 
+                    b.HasIndex("EventId", "OwnerMemberId", "Name")
+                        .IsUnique()
+                        .HasFilter("[Kind] = 1");
+
                     b.ToTable("Tabs");
                 });
 

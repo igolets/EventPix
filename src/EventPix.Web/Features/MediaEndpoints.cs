@@ -108,14 +108,24 @@ internal static class MediaEndpoints
 
         var now = clock.GetUtcNow().UtcDateTime;
         Tab? target;
-        if (tab is null)   // default: the member's own tab, created on first upload
+        if (tab is null)   // default: the member's own oldest tab, created on first upload
         {
-            target = await db.Tabs.FirstOrDefaultAsync(t => t.EventId == ev.Id && t.Kind == TabKind.Author && t.OwnerMemberId == me.Id, ct);
+            target = await db.Tabs.Where(t => t.EventId == ev.Id && t.Kind == TabKind.Author && t.OwnerMemberId == me.Id)
+                .OrderBy(t => t.SortOrder).ThenBy(t => t.Id).FirstOrDefaultAsync(ct);
             if (target is null)
             {
                 target = new Tab { EventId = ev.Id, Name = me.DisplayName, Kind = TabKind.Author, OwnerMemberId = me.Id, SortOrder = 1000 };
                 db.Tabs.Add(target);
-                await db.SaveChangesAsync(ct);
+                try
+                {
+                    await db.SaveChangesAsync(ct);
+                }
+                catch (DbUpdateException)   // a parallel upload won the race and created the tab first: reuse it
+                {
+                    db.Entry(target).State = EntityState.Detached;
+                    target = await db.Tabs.Where(t => t.EventId == ev.Id && t.Kind == TabKind.Author && t.OwnerMemberId == me.Id)
+                        .OrderBy(t => t.SortOrder).ThenBy(t => t.Id).FirstAsync(ct);
+                }
             }
         }
         else

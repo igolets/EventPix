@@ -40,6 +40,8 @@
       <a class="btn btn-ghost" data-ref="download-starred" href="#" data-i18n="downloadStarred">Download starred ★</a>
       <a class="btn btn-ghost" data-ref="download-all" href="#" data-i18n="downloadAll">Download everything</a>
       <button class="btn" data-ref="select" type="button" aria-pressed="false" data-i18n="select">Select</button>
+      <button class="btn" data-ref="tab-add" type="button" data-i18n="tabNew">New tab</button>
+      <button class="btn" data-ref="tab-rename" type="button" hidden data-i18n="tabRename">Rename</button>
       <button class="btn btn-primary" data-ref="download-selected" type="button" hidden>Download selected</button>
       <span class="progress" data-ref="progress" aria-hidden="true"></span>
       <span class="muted" data-ref="status" role="status"></span>
@@ -127,6 +129,26 @@
   </li>
 </template>
 
+<template data-tpl="tab-editor">
+  <div class="dialog">
+    <section class="card tab-editor">
+      <header>
+        <h2 data-ref="title"></h2>
+        <button class="btn btn-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <form class="stack" data-ref="form">
+        <label for="tab-name" data-i18n="tabNameLabel">Name</label>
+        <input id="tab-name" data-ref="name" maxlength="100" autocomplete="off" required>
+        <p class="error" data-ref="message" role="alert"></p>
+        <div class="actions">
+          <button class="btn btn-danger" data-ref="delete" type="button" hidden data-i18n="tabDelete">Delete tab</button>
+          <button class="btn btn-primary" type="submit" data-i18n="tabSave">Save</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</template>
+
 <!-- UI strings the core writes via textContent (i18n). The base template is the English fallback; add more
      <template data-tpl="strings" data-lang="xx"> variants to translate — the browser language (or ?lang=xx)
      picks one. Keep each template a single JSON object. Key list: docs/architecture.md#theming-contract. -->
@@ -159,7 +181,18 @@
   "unsubTitle": "Unsubscribe",
   "unsubOk": "You have been unsubscribed. You will not receive any more notifications for this album.",
   "unsubInvalid": "This link is not valid or you are already unsubscribed.",
-  "unsubBadLink": "This link is not valid."
+  "unsubBadLink": "This link is not valid.",
+  "tabNew": "New tab",
+  "tabRename": "Rename",
+  "tabCreateTitle": "New tab",
+  "tabRenameTitle": "Rename tab",
+  "tabNameLabel": "Name",
+  "tabSave": "Save",
+  "tabDelete": "Delete tab",
+  "tabDeleteArmed": "Really delete?",
+  "tabNameInUse": "You already have a tab with that name.",
+  "tabFail": "Could not save the tab.",
+  "ariaRename": "Rename tab"
 }</template>
 
 <template data-tpl="strings" data-lang="ru">{
@@ -212,5 +245,16 @@
   "ariaPrev": "Назад",
   "ariaNext": "Вперёд",
   "ariaFullscreen": "Во весь экран",
-  "ariaDownload": "Скачать"
+  "ariaDownload": "Скачать",
+  "tabNew": "Новая вкладка",
+  "tabRename": "Переименовать",
+  "tabCreateTitle": "Новая вкладка",
+  "tabRenameTitle": "Переименовать вкладку",
+  "tabNameLabel": "Название",
+  "tabSave": "Сохранить",
+  "tabDelete": "Удалить вкладку",
+  "tabDeleteArmed": "Точно удалить?",
+  "tabNameInUse": "Вкладка с таким названием у вас уже есть.",
+  "tabFail": "Не удалось сохранить вкладку.",
+  "ariaRename": "Переименовать вкладку"
 }</template>
