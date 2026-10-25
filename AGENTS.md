@@ -69,16 +69,9 @@ Architecture:
 
 Strict build passes (0 warnings — analyzers, style and audit are warnings-as-errors) · `dotnet format --verify-no-changes` clean · tests pass · no new invariant violations · docs updated · no secrets or sample media committed · works with the default theme and does not require editing C# to restyle.
 
-## Roadmap (do in order; each milestone is one PR)
+## Open questions
 
-**M0: make it compile and run.** Fix compile errors; verify `ZipArchive.CreateAsync` / `entry.OpenAsync` signatures on the installed SDK;
-add the initial EF migration and switch startup to `MigrateAsync`; add `WebApplicationFactory` smoke test (create event -> request code -> verify -> list tabs).
-**M1: correctness.** EXIF orientation in `ImageVariants` (`SKCodec.EncodedOrigin`); video duration (ffprobe); `TakenUtc` from EXIF/ffprobe;
-owner endpoints for tab rename/reorder/delete (delete blobs); invite list management; unsubscribe page (`/u/{id}.{sig}`) in core JS + theme template.
-**M2: UX.** Upload progress bar and parallel uploads; PhotoSwipe-style pinch zoom in lightbox (vendor MIT lib into `wwwroot/lib`, still CSP-clean);
-multi-select mode with "download selected" via `POST /download` (ids list) in addition to stars; pagination/infinite scroll; i18n strings in theme.
-**M3: notifications.** Digest mode; Telegram deep-link subscription flow; outbox with retry; per-tab subscriptions UI.
-**M4: ops.** Owner admin UI (optional, behind owner role); storage quota; antivirus hook; HEIC support decision (see open questions); health endpoint; Windows service + IIS docs; GitHub Actions (build, test, vulnerable-package check, docker publish); second theme to prove the contract.
+Tracked in `docs/architecture.md` (§12 Open questions). Do not resolve them silently; discuss with the user first.
 
 ## Things not to do
 

@@ -12,7 +12,7 @@ star favourites and download files, tabs, the whole library, or just the starred
 * The UI theme is a plain folder of HTML templates + CSS. Change the look without touching C#.
 * MIT licensed.
 
-See `AGENTS.md` for the roadmap and `docs/architecture.md` for the design.
+See `AGENTS.md` for contribution guidance and `docs/architecture.md` for the design.
 
 ## Quick start
 
