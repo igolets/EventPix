@@ -11,7 +11,7 @@
     <!-- MIT (MailKit/MimeKit), Apache-2.0 (SQLitePCLRaw), MIT (System.*). Direct refs pin patched transitive versions. -->
     <PackageVersion Include="MailKit" Version="4.18.2" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
-    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.14" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <PackageVersion Include="Telegram.Bot" Version="22.10.3.3" />
     <PackageVersion Include="SkiaSharp" Version="4.153.1" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />
