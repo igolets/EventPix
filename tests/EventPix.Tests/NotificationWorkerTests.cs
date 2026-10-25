@@ -167,6 +167,64 @@ public sealed class NotificationWorkerTests : IDisposable
     }
 
 
+    [Fact]
+    public async Task Missing_Channel_Keeps_The_Row_Pending()
+    {
+        var owner = OwnerEmail();
+        var (_, eventId) = await _app.CreateEventAsync(owner);
+        var seed = await SeedAsync(eventId, uploaderIsOwner: false, digest: false);
+
+        using (var scope = _app.Factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+            var sub = await db.Subscriptions.SingleAsync(s => s.Id == seed.SubscriptionId);
+            sub.Channel = (NotifyChannel)99;   // no channel is registered for this value
+            await db.SaveChangesAsync();
+        }
+
+        await Tick();
+
+        using (var scope = _app.Factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+            var row = await db.Outbox.SingleAsync();
+            Assert.Null(row.SentUtc);
+            Assert.Equal(0, row.Attempts);
+        }
+    }
+
+    [Fact]
+    public async Task Exhausted_Retries_Drop_The_Row()
+    {
+        var flaky = new FlakySender { Failures = NotificationWorker.MaxAttempts };
+        using var baseFactory = new TestAppFactory();
+        using var factory = baseFactory.WithWebHostBuilder(b => b.ConfigureServices(
+            s => s.AddSingleton<IEmailSender>(flaky)));
+        await SeedOnFactoryAsync(factory);
+
+        var worker = factory.Services.GetServices<IHostedService>().OfType<NotificationWorker>().Single();
+        await worker.TickAsync(CancellationToken.None);   // dispatch + first failure
+        for (var attempt = 1; attempt < NotificationWorker.MaxAttempts; attempt++)
+        {
+            using (var scope = factory.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+                var row = await db.Outbox.SingleAsync();
+                row.NotBeforeUtc = DateTime.UtcNow.AddMinutes(-1);
+                await db.SaveChangesAsync();
+            }
+
+            await worker.TickAsync(CancellationToken.None);
+        }
+
+        using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+            Assert.Empty(await db.Outbox.ToListAsync());
+        }
+
+        Assert.Contains(baseFactory.Logs.Lines, l => l.Contains("Notification dropped after", StringComparison.Ordinal));
+    }
     private Task Tick()
     {
         var worker = _app.Factory.Services.GetServices<IHostedService>().OfType<NotificationWorker>().Single();

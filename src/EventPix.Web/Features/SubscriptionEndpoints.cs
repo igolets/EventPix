@@ -6,8 +6,6 @@ using EventPix.Web.Domain;
 using EventPix.Web.Notifications;
 using EventPix.Web.Security;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Telegram.Bot;
 
 namespace EventPix.Web.Features;
 
@@ -62,10 +60,11 @@ internal static class SubscriptionEndpoints
 
         // Issues a single-use, 15-minute code the user sends to the bot as a /start deep link.
         g.MapGet("/subscriptions/telegram-link", async (
-            HttpContext h, EventPixDb db, IOptions<TelegramOptions> tg, TimeProvider clock, CancellationToken ct) =>
+            HttpContext h, EventPixDb db, ITelegramBotGateway telegram, TimeProvider clock, CancellationToken ct) =>
         {
             var (ev, me) = h.GetScope();
-            if (string.IsNullOrWhiteSpace(tg.Value.BotToken))
+            var botName = await telegram.GetBotUsernameAsync(ct);
+            if (string.IsNullOrEmpty(botName))
             {
                 return Results.Json(new { error = "telegram_not_configured" }, statusCode: 501);
             }
@@ -102,14 +101,7 @@ internal static class SubscriptionEndpoints
             });
             await db.SaveChangesAsync(ct);
 
-            var bot = new TelegramBotClient(tg.Value.BotToken);
-            var botUser = await bot.GetMe(ct);
-            if (string.IsNullOrEmpty(botUser.Username))
-            {
-                return Results.Json(new { error = "telegram_not_configured" }, statusCode: 501);
-            }
-
-            var url = $"https://t.me/{botUser.Username}?start={code}";
+            var url = $"https://t.me/{botName}?start={code}";
             return Results.Ok(new { url, expiresUtc = expires });
         });
 
