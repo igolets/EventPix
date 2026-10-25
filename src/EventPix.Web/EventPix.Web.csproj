@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <!-- Direct refs to pull vulnerable transitives up to patched versions. -->
     <PackageReference Include="MailKit" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" />

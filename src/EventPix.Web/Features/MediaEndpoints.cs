@@ -1,10 +1,12 @@
 using System.Security.Cryptography;
+using EventPix.Web.Configuration;
 using EventPix.Web.Data;
 using EventPix.Web.Domain;
 using EventPix.Web.Media;
 using EventPix.Web.Security;
 using EventPix.Web.Storage;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace EventPix.Web.Features;
 
@@ -94,7 +96,8 @@ internal static class MediaEndpoints
     }
 
     private static async Task<IResult> UploadAsync(Guid? tab, HttpContext h, EventPixDb db, IMediaStorage storage,
-        MediaQueue queue, TimeProvider clock, CancellationToken ct)
+        MediaQueue queue, IAntivirusScanner antivirus, IOptions<EventPixOptions> options,
+        ILogger<Program> log, TimeProvider clock, CancellationToken ct)
     {
         var (ev, meNoTrack) = h.GetScope();
         var me = await db.Members.FirstAsync(m => m.Id == meNoTrack!.Id, ct);
@@ -129,10 +132,21 @@ internal static class MediaEndpoints
             }
         }
 
+        var quota = options.Value.EventQuotaBytes;
+        var used = quota > 0
+            ? await db.MediaItems.Where(m => m.EventId == ev.Id).SumAsync(m => (long?)m.SizeBytes, ct) ?? 0L
+            : 0L;
+
         var form = await h.Request.ReadFormAsync(ct);
         var results = new List<object>();
         foreach (var file in form.Files)
         {
+            if (quota > 0 && used + file.Length > quota)
+            {
+                results.Add(new { name = file.FileName, error = "quota_exceeded" });
+                continue;
+            }
+
             await using var s = file.OpenReadStream();
             var head = new byte[32];
             var n = await s.ReadAtLeastAsync(head, 12, throwOnEndOfStream: false, ct);
@@ -143,6 +157,19 @@ internal static class MediaEndpoints
             var sha = Convert.ToHexString(await SHA256.HashDataAsync(s, ct));
             if (await db.MediaItems.AnyAsync(m => m.TabId == target.Id && m.Sha256 == sha, ct))
             { results.Add(new { name = file.FileName, error = "duplicate" }); continue; }
+
+            // Fail-closed: a scanner error (or a verdict) means the file is not stored.
+            try
+            {
+                s.Position = 0;
+                await antivirus.ScanAsync(s, file.FileName, ct);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                log.ScannerRejected(e, file.FileName);
+                results.Add(new { name = file.FileName, error = "rejected_by_scanner" });
+                continue;
+            }
 
             var id = Guid.CreateVersion7();
             var key = $"{ev.Id:N}/{id:N}";
@@ -172,6 +199,7 @@ internal static class MediaEndpoints
             });
             await db.SaveChangesAsync(ct);
             await queue.EnqueueAsync(id);
+            used += file.Length;
             results.Add(new { name = file.FileName, id });
         }
         return Results.Ok(new { tabId = target.Id, results });

@@ -13,6 +13,8 @@ internal sealed class EventPixOptions
     public string ActiveTheme { get; set; } = "default";
     public string PublicBaseUrl { get; set; } = "http://localhost:5000";
     public long MaxUploadBytes { get; set; } = 2L * 1024 * 1024 * 1024;
+    /// <summary>Per-event storage cap over originals, thumbnails and previews. 0 = unlimited.</summary>
+    public long EventQuotaBytes { get; set; }
     public string? FfmpegPath { get; set; } = "ffmpeg";
     public string? FfprobePath { get; set; } = "ffprobe";
     public int OtpMinutes { get; set; } = 10;

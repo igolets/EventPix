@@ -13,4 +13,7 @@ internal static partial class Log
 
     [LoggerMessage(LogLevel.Warning, "ffprobe timed out for '{Path}'.")]
     internal static partial void ProbeTimeout(this ILogger logger, string path);
+
+    [LoggerMessage(LogLevel.Warning, "Antivirus scan failed or rejected '{Name}'.")]
+    internal static partial void ScannerRejected(this ILogger logger, Exception exception, string name);
 }

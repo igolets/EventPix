@@ -118,9 +118,13 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 
 State-changing calls require header `X-Requested-With: eventpix` (CSRF defence together with SameSite=Lax).
 
+Outside the event scope: `GET /healthz` - process liveness plus database readiness. Returns a status word only; no event, member or storage details.
+
 ## 7. Pipelines
 
-**Upload**: multipart -> sniff magic bytes (reject unknown/SVG/HTML) -> SHA-256 -> dedupe per tab -> save original
+**Upload**: multipart -> sniff magic bytes (reject unknown/SVG/HTML) -> SHA-256 -> dedupe per tab -> per-event quota
+check (`EventPix:EventQuotaBytes`, 0 = unlimited) -> antivirus hook (`IAntivirusScanner`; no-op by default, fail-closed:
+any scanner error rejects the file) -> save original
 -> row `Processing` -> `MediaQueue` -> worker makes thumb/preview -> `Ready`.
 Photos: Skia resizes **after applying the EXIF orientation** (`SKCodec.EncodedOrigin`), so variants are stored upright
 and `Width`/`Height` are the displayed dimensions; capture time comes from EXIF `DateTimeOriginal`
@@ -188,6 +192,9 @@ i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eye
 
 The core only writes text via `textContent`. CSP forbids inline script/style and remote hosts, so ship fonts and images inside the theme folder.
 Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.
+`themes/default` and `themes/mono` (dark, editorial) ship in the repo; `mono` exists to prove the contract -
+completely different markup, class names and CSS over the same hooks, switched with one setting.
+`ThemingTests` enforces that every theme serves the shell, all templates and every `data-ref` the core JS uses.
 
 ## 9. Security checklist
 
@@ -202,10 +209,18 @@ Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.
 * [x] Log level for `Hosting.Diagnostics` lowered so tokens in URLs are not logged at Information
 * [x] Container: non-root, read-only rootfs, `cap_drop: ALL`, port bound to localhost
 * [x] EF migrations (`MigrateAsync` at startup); machine-generated `Migrations/` code is exempt from the analyzer contract via its scoped `.editorconfig`
-* [ ] TODO: antivirus hook interface; per-event storage quota; audit log; Dependabot + `dotnet list package --vulnerable` in CI
+* [x] Antivirus hook (`IAntivirusScanner`, no-op default) and per-event quota; `/healthz` exposes a status word only
+* [x] CI: build + tests + `dotnet list package --vulnerable --include-transitive` + dependency review + SonarCloud + GHCR image publish
+* [ ] TODO: audit log
 
 Operator notes: proxy must set `X-Forwarded-Proto`; set `EventPix:TrustForwardedHeaders=true` only if the app port is not publicly reachable;
 set client body-size and timeouts in nginx/IIS (`client_max_body_size`, `maxAllowedContentLength`).
+
+**Windows service**: `dotnet publish -c Release`, then
+`sc create EventPix binPath= "C:\EventPix\EventPix.Web.exe" start= auto` (the app calls `UseWindowsService()`, which no-ops
+elsewhere; run the create-event CLI from the same working directory so `DataPath`/`StoragePath` resolve the same way).
+**IIS**: prefer reverse-proxying to the service above with IIS/ARR (HTTPS + forwarded proto), or host in-process via the
+ASP.NET Core Module - the app needs no custom `web.config` beyond ANCM defaults; run either the service or ANCM, not both.
 
 ## 10. Key decisions
 
@@ -218,6 +233,8 @@ set client body-size and timeouts in nginx/IIS (`client_max_body_size`, `maxAllo
 | Lightbox zoom is native (pointer-events pinch + wheel + double click), not a vendored PhotoSwipe | Zero third-party JS; the theming contract stays in the theme; CSP trivially clean |
 | ffmpeg as external process | LGPL/GPL stays outside the binary |
 | One cookie, one event at a time | Simplicity. Opening a second event signs you into that one |
+| AV hook is a fail-closed no-op | Operators wire ClamAV etc. by implementing `IAntivirusScanner`; nothing is stored that the scanner did not clear |
+| HEIC stays unsupported | Licence/patent risk outweighs conversion value; JPEG/PNG/WebP/GIF cover everything else |
 | Strict analysis baked into `Directory.Build.props` | All CA rules on (`AnalysisLevel latest-all`), code style + naming enforced in build, warnings are errors, NuGet audit down to low severity. Style/naming contract lives in `.editorconfig`; `dotnet format EventPix.slnx --verify-no-changes` is the CI gate |
 | App types are `internal` | CA1515: this is an application, not a library. Tests see internals via `InternalsVisibleTo` |
 | Single NuGet source in `NuGet.config` | Central Package Management needs deterministic restore (NU1507); patched direct refs pin vulnerable transitives (SQLitePCLRaw, System.Security.Cryptography.Pkcs) |
@@ -229,10 +246,14 @@ set client body-size and timeouts in nginx/IIS (`client_max_body_size`, `maxAllo
 * **E2E** (`Microsoft.Playwright`, MIT, test-only): the real app as a Kestrel process on a random loopback port (temp paths via `EventPix__*` env vars), driven by Chromium through the theme's `data-ref` hooks — login, upload, lightbox, star, ZIP download, unsubscribe page. Selectors never use styling classes, so the suite doubles as a theming-contract check. Chromium is downloaded on first use (cached per machine); no Node tooling enters the repo or the shipped app.
 
 Local quality gate: `pwsh scripts/sonar-local.ps1` runs the same SonarCloud analysis as CI (needs `SONAR_TOKEN`; the gate result shows on sonarcloud.io a few minutes after the run). The quick no-upload approximation is `dotnet build` + `dotnet format EventPix.slnx --verify-no-changes` — it covers the C# analyzers but not the JavaScript rules.
+Workflows: `.github/workflows/dotnet.yml` (build, tests, vulnerable-package check), `dependency-review.yml` (PRs), `sonarcloud.yml` (analysis),
+`docker.yml` (publishes `ghcr.io/<owner>/eventpix` - `latest` on main, semver on `v*` tags, amd64+arm64).
 
 ## 12. Open questions
 
-1. HEIC/HEIF from iPhones: convert server-side (needs libheif; check licence) or ask guests to upload JPEG?
+1. ~~HEIC/HEIF from iPhones~~ - decided (M4): stay unsupported. Native decoding would pull in libheif plus an HEVC decoder
+   (patent-encumbered; licence risk against the permissive-only rule). `FileSniffer` rejects HEIC with the standard
+   `unsupported_type` error; iPhone guests can switch the camera to "Most Compatible" (JPEG).
 2. Video: transcode to a web-friendly H.264 preview? (CPU heavy; make it optional.)
 3. ~~Telegram linking UX~~ — decided: deep link `t.me/bot?start=<code>` minted by the web UI (M3).
 4. Owner admin web UI (tabs, members, moderation) vs. staying CLI-only.
