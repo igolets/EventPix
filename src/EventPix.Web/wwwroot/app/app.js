@@ -11,6 +11,7 @@ const state = {
   tabs: [], tab: null, items: [], lightboxIndex: -1,
   complete: false, loading: false,
   selecting: false, selected: new Set(),
+  isOwner: false,
 };
 let templates;
 let strings = {};
@@ -70,6 +71,19 @@ const DEFAULT_STRINGS = {
   tabDeleteArmed: 'Really delete?',
   tabNameInUse: 'You already have a tab with that name.',
   tabFail: 'Could not save the tab.',
+  manageTabs: 'Manage tabs',
+  manageTitle: 'Manage tabs',
+  addSection: 'Add section',
+  guestUploads: 'Guests may upload',
+  invites: 'Invites',
+  invitesTitle: 'Invites',
+  invitesEmailLabel: 'E-mail',
+  invitesAdd: 'Invite',
+  invitesEmpty: 'No invites yet.',
+  invitesJoined: 'joined',
+  invitesPending: 'pending',
+  inviteFail: 'Could not save the invite.',
+  mediaDeleteArmed: 'Really delete?',
   ariaOpen: 'Open',
   ariaStar: 'Star',
   ariaClose: 'Close',
@@ -78,6 +92,9 @@ const DEFAULT_STRINGS = {
   ariaFullscreen: 'Full screen',
   ariaDownload: 'Download',
   ariaRename: 'Rename tab',
+  ariaDelete: 'Delete',
+  ariaUp: 'Move up',
+  ariaDown: 'Move down',
 };
 
 const t = (key, params) => {
@@ -147,6 +164,10 @@ async function showGallery(info) {
   ref(view, 'subscribe').addEventListener('click', () => openSubscriptions());
   ref(view, 'tab-add').addEventListener('click', () => openTabEditor());
   ref(view, 'tab-rename').addEventListener('click', () => openTabEditor(state.tab));
+  ref(view, 'manage-tabs').addEventListener('click', () => openTabManager());
+  ref(view, 'invites').addEventListener('click', () => openInvites());
+  ref(view, 'manage-tabs').hidden = !state.isOwner;
+  ref(view, 'invites').hidden = !state.isOwner;
 
   const selectBtn = ref(view, 'select');
   selectBtn.addEventListener('click', () => setSelecting(view, !state.selecting));
@@ -242,6 +263,128 @@ async function openTabEditor(tab) {
   name.focus();
 }
 
+// ---- owner: manage tabs (sections, order, guest uploads) ------------------------------------------------
+async function openTabManager() {
+  const dialog = tpl('tab-manage');
+  const list = ref(dialog, 'list');
+  const message = ref(dialog, 'message');
+  const close = () => { document.removeEventListener('keydown', onKey); dialog.remove(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  ref(dialog, 'close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+
+  const fail = (e) => { message.textContent = e ?? t('tabFail'); };
+
+  const render = () => {
+    const sections = state.tabs.filter((t2) => t2.kind === 'Section');
+    list.replaceChildren();
+    for (const t2 of state.tabs) {
+      const row = tpl('tab-manage-row');
+      row.dataset.kind = t2.kind.toLowerCase();
+      text(row, 'label', `${t2.name} (${t2.count})`);
+      const guests = ref(row, 'guests');
+      const up = ref(row, 'up');
+      const down = ref(row, 'down');
+      if (t2.kind === 'Section') {
+        guests.checked = t2.allowGuestUploads;
+        guests.addEventListener('change', async () => {
+          const res = await api(`/tabs/${t2.id}`, { method: 'PATCH', ...jsonBody({ allowGuestUploads: guests.checked }) });
+          if (!res.ok) { fail(); return; }
+          await refresh();
+        });
+        const pos = sections.indexOf(t2);
+        up.disabled = pos === 0;
+        down.disabled = pos === sections.length - 1;
+        up.addEventListener('click', () => move(sections, pos, -1));
+        down.addEventListener('click', () => move(sections, pos, +1));
+      } else {
+        guests.closest('label')?.setAttribute('hidden', '');
+        up.hidden = true;
+        down.hidden = true;
+      }
+
+      const del = ref(row, 'delete');
+      let armed = false;
+      del.addEventListener('click', async () => {
+        if (!armed) { armed = true; row.dataset.armed = 'true'; del.textContent = t('tabDeleteArmed'); return; }
+        const res = await api(`/tabs/${t2.id}`, { method: 'DELETE' });
+        if (!res.ok) { fail(); return; }
+        await refresh();
+      });
+      list.append(row);
+    }
+  };
+
+  const move = async (sections, pos, delta) => {
+    const ids = sections.map((t2) => t2.id);
+    const j = pos + delta;
+    if (j < 0 || j >= ids.length) return;
+    [ids[pos], ids[j]] = [ids[j], ids[pos]];
+    const res = await api('/tabs/order', { method: 'PUT', ...jsonBody({ ids }) });
+    if (!res.ok) { fail(); return; }
+    await refresh();
+  };
+
+  ref(dialog, 'form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = ref(dialog, 'name').value.trim();
+    if (!name) return;
+    const res = await api('/tabs', { method: 'POST', ...jsonBody({ name, allowGuestUploads: false }) });
+    if (!res.ok) { fail(res.status === 409 ? t('tabNameInUse') : null); return; }
+    ref(dialog, 'name').value = '';
+    await refresh();
+  });
+
+  const refresh = async () => {
+    await loadTabs(state.tab?.id);
+    render();
+  };
+
+  document.body.append(dialog);
+  await refresh();
+}
+
+// ---- owner: invite management ---------------------------------------------------------------------------
+async function openInvites() {
+  const dialog = tpl('invites');
+  const list = ref(dialog, 'list');
+  const message = ref(dialog, 'message');
+  const close = () => { document.removeEventListener('keydown', onKey); dialog.remove(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  ref(dialog, 'close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+
+  const load = async () => {
+    const invites = await (await api('/invites')).json();
+    list.replaceChildren();
+    ref(dialog, 'empty').hidden = invites.length > 0;
+    for (const i of invites) {
+      const row = tpl('invite-row');
+      row.dataset.joined = String(i.joined);
+      text(row, 'label', i.email);
+      text(row, 'state', t(i.joined ? 'invitesJoined' : 'invitesPending'));
+      ref(row, 'remove').addEventListener('click', async () => {
+        const res = await api(`/invites/${i.id}`, { method: 'DELETE' });
+        if (res.ok) await load();
+      });
+      list.append(row);
+    }
+  };
+
+  ref(dialog, 'form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = ref(dialog, 'email').value.trim();
+    if (!email) return;
+    const res = await api('/invites', { method: 'POST', ...jsonBody({ email }) });
+    if (!res.ok) { message.textContent = t('inviteFail'); return; }
+    ref(dialog, 'email').value = '';
+    await load();
+  });
+
+  document.body.append(dialog);
+  await load();
+}
+
 async function loadMore() {
   if (!state.tab || state.complete || state.loading) return;
   state.loading = true;
@@ -271,13 +414,30 @@ function makeTile(m, index) {
   tile.dataset.kind = m.kind.toLowerCase();
   tile.dataset.starred = String(m.starred);
   tile.dataset.selected = String(state.selected.has(m.id));
+  tile.dataset.candelete = String(m.canDelete === true);
   if (m.width && m.height) tile.style.setProperty('--ratio', `${m.width} / ${m.height}`);
   const img = ref(tile, 'image');
   img.src = m.status === 'Ready' ? `${base}/media/${m.id}/thumb` : '';
   img.alt = m.name;
   ref(tile, 'open').addEventListener('click', () => (state.selecting ? toggleSelect(m, tile) : openLightbox(index)));
   ref(tile, 'star').addEventListener('click', () => toggleStar(m, tile));
+  const del = ref(tile, 'delete');
+  del.addEventListener('click', async () => {
+    if (tile.dataset.armed !== 'true') { tile.dataset.armed = 'true'; del.textContent = t('mediaDeleteArmed'); return; }
+    await deleteMedia(m, tile);
+  });
   return tile;
+}
+
+// Moderation: remove a media item (uploader or owner, enforced server-side) and update the grid.
+async function deleteMedia(m, tile) {
+  const res = await api(`/media/${m.id}`, { method: 'DELETE' });
+  if (!res.ok) return;
+  state.items = state.items.filter((x) => x.id !== m.id);
+  if (tile) tile.remove();
+  else renderGrid();
+  ref(state.view, 'empty').hidden = state.items.length > 0;
+  await loadTabs(state.tab?.id);   // tab counts changed
 }
 
 function renderGrid() {
@@ -421,6 +581,9 @@ function openLightbox(index) {
     text(box, 'caption', `${m.uploader} · ${m.name}`);
     ref(box, 'download').href = `${base}/media/${m.id}/original?download=true`;
     box.dataset.starred = String(m.starred);
+    box.dataset.armed = 'false';
+    del.hidden = !m.canDelete;
+    del.textContent = '✕';
   };
   const close = () => {
     box.remove();
@@ -436,6 +599,14 @@ function openLightbox(index) {
     const m = state.items[state.lightboxIndex];
     const res = await api(`/media/${m.id}/star`, { method: m.starred ? 'DELETE' : 'PUT' });
     if (res.ok) { m.starred = !m.starred; box.dataset.starred = String(m.starred); renderGrid(); }
+  });
+  const del = ref(box, 'delete');
+  del.addEventListener('click', async () => {
+    const m = state.items[state.lightboxIndex];
+    if (!m || !m.canDelete) return;
+    if (box.dataset.armed !== 'true') { box.dataset.armed = 'true'; del.textContent = t('mediaDeleteArmed'); return; }
+    close();
+    await deleteMedia(m, null);
   });
   document.addEventListener('keydown', onKey);
   document.body.append(box);
@@ -621,7 +792,9 @@ async function start() {
   if (!pub.ok) { mount(tpl('not-found')); return; }          // same page for "wrong link" as for anything else
   const info = await pub.json();
   const me = await api('/me');
-  return me.ok ? showGallery(info) : showLogin(info);
+  if (!me.ok) return showLogin(info);
+  state.isOwner = (await me.json()).isOwner === true;
+  return showGallery(info);
 }
 
 const html = await (await fetch('/theme/templates.html')).text();
