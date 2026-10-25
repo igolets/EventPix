@@ -13,8 +13,17 @@ namespace EventPix.Tests;
 /// the same contract a custom theme must keep. Selectors never rely on styling classes.
 /// </summary>
 [Collection("playwright")]
-public sealed class E2ETests(PlaywrightFixture fixture)
+public sealed partial class E2ETests(PlaywrightFixture fixture)
 {
+    [GeneratedRegex(@"/e/([A-Za-z0-9_-]+)")]
+    private static partial Regex EventTokenRegex();
+
+    [GeneratedRegex("/thumb$")]
+    private static partial Regex ThumbSrcRegex();
+
+    [GeneratedRegex(@"photo-[0-9a-f]{32}\.jpg")]
+    private static partial Regex PhotoCaptionRegex();
+
     [Fact]
     public async Task Login_Upload_Star_Download_Full_Flow()
     {
@@ -24,7 +33,7 @@ public sealed class E2ETests(PlaywrightFixture fixture)
 
         var (exit, stdout, _) = await app.RunCommandAsync("create-event", "E2E Event", ownerEmail);
         Assert.Equal(0, exit);
-        var token = Regex.Match(stdout, @"/e/([A-Za-z0-9_-]+)").Groups[1].Value;
+        var token = EventTokenRegex().Match(stdout).Groups[1].Value;
         Assert.NotEmpty(token);
 
         var context = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions { AcceptDownloads = true });
@@ -65,13 +74,13 @@ public sealed class E2ETests(PlaywrightFixture fixture)
                     await Task.Delay(500);
                 }
 
-                await Assertions.Expect(image).ToHaveAttributeAsync("src", new Regex("/thumb$"));
+                await Assertions.Expect(image).ToHaveAttributeAsync("src", ThumbSrcRegex());
 
                 // Lightbox shows the upright preview and names the file.
                 await page.Locator("[data-ref='grid'] [data-ref='open']").First.ClickAsync();
                 await Assertions.Expect(page.Locator("[data-ref='stage'] img")).ToBeVisibleAsync();
                 await Assertions.Expect(page.Locator("[data-ref='caption']"))
-                    .ToContainTextAsync(new Regex(@"photo-[0-9a-f]{32}\.jpg"));
+                    .ToContainTextAsync(PhotoCaptionRegex());
                 await page.Locator("[data-ref='close']").ClickAsync();
 
                 // Star the tile; the state attribute is the CSS/theming hook.
@@ -117,7 +126,7 @@ public sealed class E2ETests(PlaywrightFixture fixture)
         await app.StartAsync();
         var ownerEmail = $"e2e-{Guid.NewGuid():N}@example.com";
         var (_, stdout, _) = await app.RunCommandAsync("create-event", "E2E Event", ownerEmail);
-        var token = Regex.Match(stdout, @"/e/([A-Za-z0-9_-]+)").Groups[1].Value;
+        var token = EventTokenRegex().Match(stdout).Groups[1].Value;
 
         using var http = app.NewHttpClient();
         await app.SignInAsync(http, token, ownerEmail);
@@ -150,7 +159,7 @@ public sealed class E2ETests(PlaywrightFixture fixture)
         await app.StartAsync();
         var ownerEmail = $"e2e-{Guid.NewGuid():N}@example.com";
         var (_, stdout, _) = await app.RunCommandAsync("create-event", "E2E Event", ownerEmail);
-        var token = Regex.Match(stdout, @"/e/([A-Za-z0-9_-]+)").Groups[1].Value;
+        var token = EventTokenRegex().Match(stdout).Groups[1].Value;
 
         var context = await fixture.Browser.NewContextAsync();
         await using (context)

@@ -141,7 +141,7 @@ function watchSentinel(view) {
   const sentinel = ref(view, 'sentinel');
   if (!sentinel) return;   // themes without a sentinel get the first page only
   new IntersectionObserver((entries) => {
-    if (entries.some((e) => e.isIntersecting)) loadMore();
+    if (entries.some((e) => e.isIntersecting)) void loadMore();
   }, { rootMargin: '600px 0px' }).observe(sentinel);
 }
 
@@ -352,7 +352,11 @@ function openLightbox(index) {
     ref(box, 'download').href = `${base}/media/${m.id}/original?download=true`;
     box.dataset.starred = String(m.starred);
   };
-  const close = () => { box.remove(); document.removeEventListener('keydown', onKey); if (document.fullscreenElement) document.exitFullscreen(); };
+  const close = () => {
+    box.remove();
+    document.removeEventListener('keydown', onKey);
+    if (document.fullscreenElement) void document.exitFullscreen();
+  };
   const onKey = (e) => { if (e.key === 'Escape') close(); if (e.key === 'ArrowRight') show(state.lightboxIndex + 1); if (e.key === 'ArrowLeft') show(state.lightboxIndex - 1); };
   ref(box, 'close').addEventListener('click', close);
   ref(box, 'prev').addEventListener('click', () => show(state.lightboxIndex - 1));

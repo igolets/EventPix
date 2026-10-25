@@ -15,7 +15,10 @@ public sealed class DownloadEndpointsTests : IDisposable
 {
     private readonly TestApp _app = new();
 
-    public void Dispose() => _app.Dispose();
+    public void Dispose()
+    {
+        _app.Dispose();
+    }
 
     [Fact]
     public async Task Post_Download_Ids_Zips_Only_This_Event_Items()
