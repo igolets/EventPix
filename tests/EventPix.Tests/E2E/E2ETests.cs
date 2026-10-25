@@ -61,6 +61,9 @@ public sealed partial class E2ETests(PlaywrightFixture fixture)
                 await page.Locator("[data-ref='upload-input']").SetInputFilesAsync(jpegPath);
                 await Assertions.Expect(page.Locator("[data-ref='status']")).ToContainTextAsync("Uploaded");
 
+                // The status note clears again once the worker has produced every thumbnail.
+                await Assertions.Expect(page.Locator("[data-ref='status']")).ToHaveTextAsync("", new() { Timeout = 20_000 });
+
                 // The worker builds thumbnails in the background; the grid re-renders on reload.
                 var image = page.Locator("[data-ref='grid'] [data-ref='image']").First;
                 for (var i = 0; i < 40; i++)

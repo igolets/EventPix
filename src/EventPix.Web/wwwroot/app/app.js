@@ -498,9 +498,12 @@ async function upload(view, files, input) {
   view.dataset.uploading = 'false';
   input.value = '';
   const tabId = state.tab?.id;
-  status.textContent = failed ? t('uploadFailed', { name: failed }) : t('uploaded', { count: finished });
+  const uploadedMsg = t('uploaded', { count: finished });
+  status.textContent = failed ? t('uploadFailed', { name: failed }) : uploadedMsg;
   await refreshUntilReady(tabId);
   await loadTabs(tabId);
+  // The "preparing previews" note is stale once processing finished (or polling gave up).
+  if (view.dataset.uploading !== 'true' && status.textContent === uploadedMsg) status.textContent = '';
 }
 
 // Poll the tab until the worker has produced every thumbnail (or the user moves on).
