@@ -5,6 +5,11 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+
+# Analysis results are uploaded with the SONAR_TOKEN secret; GITHUB_TOKEN only needs read access.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build and analyze

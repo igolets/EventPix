@@ -9,6 +9,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# Checkout + build + test: read-only token scope is sufficient.
+permissions:
+  contents: read
+
 jobs:
   build:
 
