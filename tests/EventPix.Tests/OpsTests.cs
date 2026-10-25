@@ -13,7 +13,10 @@ public sealed class OpsTests : IDisposable
 {
     private readonly TestApp _app = new();
 
-    public void Dispose() => _app.Dispose();
+    public void Dispose()
+    {
+        _app.Dispose();
+    }
 
     [Fact]
     public async Task Healthz_Reports_Database_Readiness_And_Nothing_Else()
