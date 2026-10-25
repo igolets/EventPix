@@ -115,3 +115,43 @@ internal sealed class Subscription
     public bool Confirmed { get; set; }
     public DateTime CreatedUtc { get; set; }
 }
+
+/// <summary>
+/// One pending or delivered notification. Instant dispatch writes one row per (tab, uploader) batch;
+/// a digest subscription has at most one unsent row whose groups accumulate until the window ends.
+/// Cascades away with the subscription, so unsubscribing also drops pending deliveries.
+/// </summary>
+internal sealed class OutboxMessage
+{
+    public long Id { get; set; }
+    public Guid SubscriptionId { get; set; }
+    public NotifyChannel Channel { get; set; }
+    /// <summary>Copy of the subscription address at dispatch time.</summary>
+    public required string Address { get; set; }
+    public required string EventName { get; set; }
+    public required string Url { get; set; }
+    public required string UnsubscribeUrl { get; set; }
+    /// <summary>JSON list of {tab, uploader, photos, videos}; grows while a digest window is open.</summary>
+    public required string GroupsJson { get; set; }
+    /// <summary>Earliest delivery attempt: window end for digest, backoff pointer after a failure.</summary>
+    public DateTime NotBeforeUtc { get; set; }
+    public int Attempts { get; set; }
+    public DateTime? SentUtc { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>Single-use Telegram linking code. The raw code is shown once as a t.me deep link; only its hash is stored.</summary>
+internal sealed class TelegramLinkCode
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    /// <summary>SHA-256 (hex) of the deep-link payload.</summary>
+    public required string CodeHash { get; set; }
+    public Guid EventId { get; set; }
+    public Guid MemberId { get; set; }
+    /// <summary>null = whole event.</summary>
+    public Guid? TabId { get; set; }
+    public NotifyMode Mode { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime ExpiresUtc { get; set; }
+    public DateTime? ConsumedUtc { get; set; }
+}

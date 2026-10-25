@@ -1,7 +1,13 @@
+using System.Buffers.Text;
+using System.Security.Cryptography;
+using EventPix.Web.Configuration;
 using EventPix.Web.Data;
 using EventPix.Web.Domain;
+using EventPix.Web.Notifications;
 using EventPix.Web.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Telegram.Bot;
 
 namespace EventPix.Web.Features;
 
@@ -24,7 +30,8 @@ internal static class SubscriptionEndpoints
             var (ev, me) = h.GetScope();
             if (dto.Channel != NotifyChannel.Email)
             {
-                return Results.Json(new { error = "channel_not_linked" }, statusCode: 501);   // TODO: Telegram deep-link flow
+                // Telegram subscriptions can only be confirmed by the bot proving the chat id.
+                return Results.Json(new { error = "telegram_use_link" }, statusCode: 400);
             }
 
             if (dto.TabId is not null && !await db.Tabs.AnyAsync(t => t.Id == dto.TabId && t.EventId == ev.Id, ct))
@@ -53,6 +60,59 @@ internal static class SubscriptionEndpoints
             return Results.Ok(new { sub.Id });
         });
 
+        // Issues a single-use, 15-minute code the user sends to the bot as a /start deep link.
+        g.MapGet("/subscriptions/telegram-link", async (
+            HttpContext h, EventPixDb db, IOptions<TelegramOptions> tg, TimeProvider clock, CancellationToken ct) =>
+        {
+            var (ev, me) = h.GetScope();
+            if (string.IsNullOrWhiteSpace(tg.Value.BotToken))
+            {
+                return Results.Json(new { error = "telegram_not_configured" }, statusCode: 501);
+            }
+
+            Guid? tabId = null;
+            if (Guid.TryParse(h.Request.Query["tab"], out var parsedTab))
+            {
+                tabId = parsedTab;
+            }
+
+            if (tabId is not null && !await db.Tabs.AnyAsync(t => t.Id == tabId && t.EventId == ev.Id, ct))
+            {
+                return Results.NotFound();
+            }
+
+            var mode = Enum.TryParse<NotifyMode>(h.Request.Query["mode"], ignoreCase: true, out var parsedMode)
+                ? parsedMode : NotifyMode.Instant;
+
+            var now = clock.GetUtcNow().UtcDateTime;
+            var expires = now.AddMinutes(15);
+            await db.TelegramLinkCodes
+                .Where(c => c.ExpiresUtc < now || c.ConsumedUtc != null).ExecuteDeleteAsync(ct);
+
+            var code = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16));
+            db.TelegramLinkCodes.Add(new TelegramLinkCode
+            {
+                CodeHash = TelegramUpdateWorker.CodeHash(code),
+                EventId = ev.Id,
+                MemberId = me!.Id,
+                TabId = tabId,
+                Mode = mode,
+                CreatedUtc = now,
+                ExpiresUtc = expires,
+            });
+            await db.SaveChangesAsync(ct);
+
+            var bot = new TelegramBotClient(tg.Value.BotToken);
+            var botUser = await bot.GetMe(ct);
+            if (string.IsNullOrEmpty(botUser.Username))
+            {
+                return Results.Json(new { error = "telegram_not_configured" }, statusCode: 501);
+            }
+
+            var url = $"https://t.me/{botUser.Username}?start={code}";
+            return Results.Ok(new { url, expiresUtc = expires });
+        });
+
         g.MapDelete("/subscriptions/{id:guid}", async (Guid id, HttpContext h, EventPixDb db, CancellationToken ct) =>
         {
             var (ev, me) = h.GetScope();
@@ -61,7 +121,8 @@ internal static class SubscriptionEndpoints
         });
     }
 
-    /// <summary>One-click unsubscribe from e-mail. Link carries an HMAC so ids can't be forged.</summary>
+    /// <summary>One-click unsubscribe. Link carries an HMAC so ids can't be forged; pending outbox rows for
+    /// the subscription die with it (cascade).</summary>
     public static void MapUnsubscribe(IEndpointRouteBuilder app)
     {
         app.MapPost("/api/unsubscribe/{id:guid}/{sig}", async (Guid id, string sig, EventPixDb db, SecretPepper pepper, CancellationToken ct) =>

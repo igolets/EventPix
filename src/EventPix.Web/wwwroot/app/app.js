@@ -37,8 +37,21 @@ const DEFAULT_STRINGS = {
   uploading: 'Uploading… {percent}%',
   uploaded: 'Uploaded {count} file(s). Preparing previews…',
   uploadFailed: 'Upload failed: {name}',
-  subscribeOk: 'You will get an e-mail when new files are added.',
-  subscribeFail: 'Could not subscribe.',
+  subsTitle: 'Notifications',
+  subsChannel: 'Channel',
+  subsEmail: 'E-mail',
+  subsTelegram: 'Telegram',
+  subsTab: 'Album',
+  subsAllTabs: 'All albums',
+  subsMode: 'Frequency',
+  subsInstant: 'Instantly',
+  subsDigest: 'Daily digest',
+  subsAdd: 'Save',
+  subsEmpty: 'No notifications yet.',
+  subsRemove: 'Remove',
+  subsFail: 'Could not save the subscription.',
+  subsTelegramHint: 'Open this link in Telegram to finish:',
+  subsTelegramOff: 'Telegram notifications are not configured on this server.',
   select: 'Select',
   selecting: 'Cancel selection',
   downloadSelected: 'Download selected ({count})',
@@ -120,10 +133,7 @@ async function showGallery(info) {
   ref(view, 'download-starred').href = `${base}/download?starred=true`;
   ref(view, 'signout').addEventListener('click', async () => { await api('/auth/logout', { method: 'POST' }); location.reload(); });
   ref(view, 'upload-input').addEventListener('change', (e) => upload(view, [...e.target.files], e.target));
-  ref(view, 'subscribe').addEventListener('click', async () => {
-    const res = await api('/subscriptions', { method: 'PUT', ...jsonBody({ channel: 'Email', tabId: null, mode: 'Instant' }) });
-    text(view, 'status', res.ok ? t('subscribeOk') : t('subscribeFail'));
-  });
+  ref(view, 'subscribe').addEventListener('click', () => openSubscriptions());
 
   const selectBtn = ref(view, 'select');
   selectBtn.addEventListener('click', () => setSelecting(view, !state.selecting));
@@ -443,6 +453,85 @@ function createZoom(box, stage) {
   stage.addEventListener('dblclick', () => (scale > 1.01 ? reset() : zoomBy(2.5)));
 
   return { reset };
+}
+
+// ---- subscriptions: per-tab, per-channel notification settings -----------------------------------------
+function tabName(id) {
+  if (!id) return t('subsAllTabs');
+  return state.tabs.find((x) => x.id === id)?.name ?? '?';
+}
+
+function subLabel(s) {
+  const channel = s.channel === 'Email' ? t('subsEmail') : t('subsTelegram');
+  const mode = s.mode === 'Digest' ? t('subsDigest') : t('subsInstant');
+  return channel + ' · ' + tabName(s.tabId) + ' · ' + mode;
+}
+
+async function openSubscriptions() {
+  const dialog = tpl('subscriptions');
+  const list = ref(dialog, 'list');
+  const message = ref(dialog, 'message');
+  const close = () => { document.removeEventListener('keydown', onKey); dialog.remove(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+
+  const load = async () => {
+    const subs = await (await api('/subscriptions')).json();
+    list.replaceChildren();
+    ref(dialog, 'empty').hidden = subs.length > 0;
+    for (const s of subs) {
+      const row = tpl('sub-row');
+      text(row, 'label', subLabel(s));
+      ref(row, 'remove').addEventListener('click', async () => {
+        const res = await api(`/subscriptions/${s.id}`, { method: 'DELETE' });
+        if (res.ok) await load();
+      });
+      list.append(row);
+    }
+  };
+
+  ref(dialog, 'close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+
+  ref(dialog, 'form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    message.replaceChildren();
+    const channel = ref(dialog, 'channel').value;
+    const tabId = ref(dialog, 'tab').value || null;
+    const mode = ref(dialog, 'mode').value;
+    if (channel === 'Telegram') {
+      const query = tabId ? `?tab=${encodeURIComponent(tabId)}&mode=${encodeURIComponent(mode)}` : `?mode=${encodeURIComponent(mode)}`;
+      const res = await api(`/subscriptions/telegram-link${query}`);
+      if (!res.ok) { message.textContent = t('subsTelegramOff'); return; }
+      const link = (await res.json()).url;
+      const a = document.createElement('a');
+      a.href = link;
+      a.rel = 'noreferrer';
+      a.textContent = link;
+      const hint = document.createElement('span');
+      hint.textContent = t('subsTelegramHint') + ' ';
+      message.append(hint, a);
+      return;
+    }
+
+    const res = await api('/subscriptions', { method: 'PUT', ...jsonBody({ channel, tabId, mode }) });
+    if (!res.ok) { message.textContent = t('subsFail'); return; }
+    await load();
+  });
+
+  const tabSelect = ref(dialog, 'tab');
+  const all = document.createElement('option');
+  all.value = '';
+  all.textContent = t('subsAllTabs');
+  tabSelect.append(all);
+  for (const tb of state.tabs) {
+    const option = document.createElement('option');
+    option.value = tb.id;
+    option.textContent = tb.name;
+    tabSelect.append(option);
+  }
+
+  document.body.append(dialog);
+  await load();
 }
 
 // ---- unsubscribe --------------------------------------------------------------------------------------------

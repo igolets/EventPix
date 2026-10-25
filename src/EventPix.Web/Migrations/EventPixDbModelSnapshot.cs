@@ -234,6 +234,60 @@ namespace EventPix.Web.Migrations
                     b.ToTable("Members");
                 });
 
+            modelBuilder.Entity("EventPix.Web.Domain.OutboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EventName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("NotBeforeUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("SentUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UnsubscribeUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.HasIndex("SentUtc", "NotBeforeUtc");
+
+                    b.ToTable("Outbox");
+                });
+
             modelBuilder.Entity("EventPix.Web.Domain.Star", b =>
                 {
                     b.Property<Guid>("MemberId")
@@ -326,6 +380,51 @@ namespace EventPix.Web.Migrations
                     b.ToTable("Tabs");
                 });
 
+            modelBuilder.Entity("EventPix.Web.Domain.TelegramLinkCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ConsumedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("MemberId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("TabId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("ExpiresUtc");
+
+                    b.HasIndex("MemberId");
+
+                    b.ToTable("TelegramLinkCodes");
+                });
+
             modelBuilder.Entity("EventPix.Web.Domain.Invite", b =>
                 {
                     b.HasOne("EventPix.Web.Domain.Event", null)
@@ -374,6 +473,15 @@ namespace EventPix.Web.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("EventPix.Web.Domain.OutboxMessage", b =>
+                {
+                    b.HasOne("EventPix.Web.Domain.Subscription", null)
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("EventPix.Web.Domain.Star", b =>
                 {
                     b.HasOne("EventPix.Web.Domain.MediaItem", null)
@@ -409,6 +517,21 @@ namespace EventPix.Web.Migrations
                     b.HasOne("EventPix.Web.Domain.Event", null)
                         .WithMany()
                         .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EventPix.Web.Domain.TelegramLinkCode", b =>
+                {
+                    b.HasOne("EventPix.Web.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("EventPix.Web.Domain.Member", null)
+                        .WithMany()
+                        .HasForeignKey("MemberId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
