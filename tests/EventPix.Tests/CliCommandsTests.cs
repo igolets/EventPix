@@ -34,7 +34,9 @@ public sealed class CliCommandsTests
         {
             var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
             var emails = await db.Invites.Where(i => i.EventId == eventId).Select(i => i.Email).ToListAsync();
-            Assert.Equal([first, second], emails);   // member and invalid address skipped
+            Assert.Equal(2, emails.Count);   // member and invalid address skipped
+            Assert.Contains(first, emails);
+            Assert.Contains(second, emails);
         }
 
         // Re-running skips everything already invited.

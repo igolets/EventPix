@@ -155,8 +155,15 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
-app.UseStaticFiles();   // core JS in wwwroot (served at /app/...)
-app.UseStaticFiles(new StaticFileOptions { FileProvider = new PhysicalFileProvider(themeDir), RequestPath = "/theme" });
+// Core JS and theme files are revalidated on every load (ETag makes it a cheap 304): operators edit
+// themes in place, so browsers must never heuristically cache stale markup/JS.
+app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache" });
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(themeDir),
+    RequestPath = "/theme",
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache",
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
