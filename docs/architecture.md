@@ -106,6 +106,7 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | DELETE `/media/{id}` | uploader or owner | Remove + blobs |
 | PUT/DELETE `/media/{id}/star` | session | Star / unstar |
 | GET `/download[?tab=id][&starred=true]` | session | Streamed ZIP: file = `/media/..?download`, tab, starred, or everything |
+| POST `/download` `{ids}` | session | Streamed ZIP of the selected items (multi-select). Ids of other events are silently dropped; max 500 |
 | GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings |
 | POST `/api/unsubscribe/{id}/{sig}` | HMAC link | One-click unsubscribe (valid sig is always 204, even if already gone) |
 | GET `/u/{id}.{sig}` | HMAC link | Unsubscribe page: theme shell + core JS confirming via the API above |
@@ -130,17 +131,36 @@ groups by (tab, uploader), sends one message per matching subscription (never to
 A new channel = one class implementing `INotificationChannel` + one DI line.
 
 ## 8. Theming contract
-
 Core JS has no markup/styling. A theme folder provides:
 * `index.html`: shell that loads `/theme/theme.css` and `/app/app.js`, has `<div id="app">`.
-* `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `unsubscribe`, `not-found`.
+* `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `unsubscribe`, `not-found`,
+  plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
+  Translations are additional `<template data-tpl="strings" data-lang="ru">` variants; the browser language
+  picks one (primary-subtag match), and a `?lang=xx` query parameter overrides it.
 * `theme.css` and any assets (`/theme/<file>`).
 
 Hooks: `data-ref="..."` marks elements the core fills or wires (see the default theme for the full list).
+Theme markup can declare translatable text: `data-i18n="key"` sets `textContent` from the strings system
+and `data-i18n-aria="key"` sets the `aria-label`; keep them on leaf elements. The core fills both on every
+rendered view, so a theme is localisable purely through its `strings` templates.
+Gallery hooks beyond the basics: `select` (toggle multi-select), `download-selected` (POSTs `/download`),
+`progress` (upload bar), `sentinel` (infinite-scroll marker; without it only the first page loads).
 The `unsubscribe` template needs `data-ref="title"` and `data-ref="message"`; the core confirms the unsubscribe
 by POSTing to `/api/unsubscribe/{id}/{sig}` and writes the outcome via `textContent`.
-State is exposed to CSS as attributes: `data-kind="photo|video|section|author"`, `data-starred="true|false"`,
-`aria-selected` on tabs, `--ratio` custom property on tiles.
+
+State is exposed to CSS as attributes and properties — the core never sets classes for looks:
+* every rendered view carries `data-tpl="<name>"`;
+* gallery shell: `data-uploading=true|false`, `data-selecting=true|false`, progress element gets `--progress: 0-100%`;
+* tiles: `data-kind`, `data-starred`, `data-selected`, `aria-selected` on tabs, `--ratio` on tiles;
+* lightbox: `data-starred`, `data-zoom=true` while zoomed; grid: `data-complete=true` when no more pages.
+
+i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
+`codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `downloadTab`, `downloadStarred`, `downloadAll`,
+`empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
+(`{name}`), `subscribeOk`, `subscribeFail`, `select`, `selecting`, `downloadSelected` (`{count}`),
+`downloadFailed`, `unsubTitle`, `unsubOk`, `unsubInvalid`, `unsubBadLink`, and the `aria*` labels
+(`ariaOpen`, `ariaStar`, `ariaClose`, `ariaPrev`, `ariaNext`, `ariaFullscreen`, `ariaDownload`).
+
 The core only writes text via `textContent`. CSP forbids inline script/style and remote hosts, so ship fonts and images inside the theme folder.
 Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.
 
@@ -169,6 +189,7 @@ set client body-size and timeouts in nginx/IIS (`client_max_body_size`, `maxAllo
 | CLI for event admin | No admin UI to secure in v1 |
 | SQLite + filesystem | Zero-ops; the target is one event on one box |
 | SkiaSharp (MIT) not ImageSharp | Licence compatibility with a permissive project |
+| Lightbox zoom is native (pointer-events pinch + wheel + double click), not a vendored PhotoSwipe | Zero third-party JS; the theming contract stays in the theme; CSP trivially clean |
 | ffmpeg as external process | LGPL/GPL stays outside the binary |
 | One cookie, one event at a time | Simplicity. Opening a second event signs you into that one |
 | Strict analysis baked into `Directory.Build.props` | All CA rules on (`AnalysisLevel latest-all`), code style + naming enforced in build, warnings are errors, NuGet audit down to low severity. Style/naming contract lives in `.editorconfig`; `dotnet format EventPix.slnx --verify-no-changes` is the CI gate |

@@ -12,10 +12,15 @@ namespace EventPix.Web.Features;
 
 internal static class DownloadEndpoints
 {
+    private const int MaxSelectedItems = 500;
+
+    internal sealed record DownloadSelectedDto(Guid[]? Ids);
+
     /// <summary>
     /// GET /download                -> whole library
     /// GET /download?tab={id}       -> one tab
     /// GET /download?starred=true   -> the caller's starred files (optionally combined with tab)
+    /// POST /download {ids}         -> the given items of THIS event only (multi-select download)
     /// The ZIP is streamed straight to the response: no temp file, constant memory.
     /// Media is already compressed, so entries are stored (NoCompression).
     /// </summary>
@@ -46,31 +51,75 @@ internal static class DownloadEndpoints
                 return Results.NotFound();
             }
 
-            var tabNames = await db.Tabs.Where(t => t.EventId == ev.Id).ToDictionaryAsync(t => t.Id, t => t.Name, ct);
-            var scopeName = starred == true ? "starred" : tab is not null ? tabNames.GetValueOrDefault(tab.Value, "tab") : "all";
-
-            h.Response.ContentType = "application/zip";
-            h.Response.Headers.ContentDisposition =
-                new ContentDispositionHeaderValue("attachment") { FileNameStar = $"{Safe(ev.Name)}-{Safe(scopeName)}.zip" }.ToString();
-
-            // ZipArchive must stream to a non-seekable body, so entries use data descriptors, and the BCL
-            // has no async path for those descriptor/central-directory writes during disposal (tiny payloads).
-            // Opt this response into synchronous IO; the large entry copies below stay fully async.
-            h.Features.Get<IHttpBodyControlFeature>()!.AllowSynchronousIO = true;
-
-            // .NET 10 async ZIP APIs: required because Kestrel forbids synchronous writes to the response body.
-            await using var zip = await ZipArchive.CreateAsync(h.Response.Body, ZipArchiveMode.Create, leaveOpen: true, entryNameEncoding: Encoding.UTF8, ct);
-            var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var m in items)
+            var scopeName = starred == true ? "starred" : "all";
+            if (tab is not null)
             {
-                var name = Unique(used, $"{Safe(tabNames.GetValueOrDefault(m.TabId, "tab"))}/{Safe(m.OriginalFileName)}");
-                var entry = zip.CreateEntry(name, CompressionLevel.NoCompression);
-                await using var dst = await entry.OpenAsync(ct);
-                await using var src = storage.OpenRead(m.StorageKey + "/original");
-                await src.CopyToAsync(dst, ct);
+                scopeName = await db.Tabs.Where(t => t.Id == tab && t.EventId == ev.Id)
+                    .Select(t => t.Name).FirstOrDefaultAsync(ct) ?? "tab";
             }
-            return Results.Empty;
+
+            return await WriteZipAsync(h, db, storage, ev, items, scopeName, ct);
         });
+
+        g.MapPost("/download", async (DownloadSelectedDto dto, HttpContext h, EventPixDb db, IMediaStorage storage, CancellationToken ct) =>
+        {
+            if (dto.Ids is not { Length: > 0 })
+            {
+                return Results.BadRequest(new { error = "invalid_ids" });
+            }
+
+            if (dto.Ids.Length > MaxSelectedItems)
+            {
+                return Results.BadRequest(new { error = "too_many" });
+            }
+
+            var (ev, me) = h.GetScope();
+            if (!ev.DownloadsOpen && me!.Role != MemberRole.Owner)
+            {
+                return Results.StatusCode(403);
+            }
+
+            // Ids from other events (or unknown/processing ids) are silently dropped: no existence oracle.
+            var items = await db.MediaItems.AsNoTracking()
+                .Where(m => m.EventId == ev.Id && m.Status == MediaStatus.Ready && dto.Ids.Contains(m.Id))
+                .OrderBy(m => m.TabId).ThenBy(m => m.UploadedUtc)
+                .ToListAsync(ct);
+            if (items.Count == 0)
+            {
+                return Results.NotFound();
+            }
+
+            return await WriteZipAsync(h, db, storage, ev, items, "selection", ct);
+        });
+    }
+
+    private static async Task<IResult> WriteZipAsync(
+        HttpContext h, EventPixDb db, IMediaStorage storage, Event ev, List<MediaItem> items, string scopeName, CancellationToken ct)
+    {
+        var tabNames = await db.Tabs.Where(t => t.EventId == ev.Id).ToDictionaryAsync(t => t.Id, t => t.Name, ct);
+
+        h.Response.ContentType = "application/zip";
+        h.Response.Headers.ContentDisposition =
+            new ContentDispositionHeaderValue("attachment") { FileNameStar = $"{Safe(ev.Name)}-{Safe(scopeName)}.zip" }.ToString();
+
+        // ZipArchive must stream to a non-seekable body, so entries use data descriptors, and the BCL
+        // has no async path for those descriptor/central-directory writes during disposal (tiny payloads).
+        // Opt this response into synchronous IO; the large entry copies below stay fully async.
+        h.Features.Get<IHttpBodyControlFeature>()!.AllowSynchronousIO = true;
+
+        // .NET 10 async ZIP APIs: required because Kestrel forbids synchronous writes to the response body.
+        await using var zip = await ZipArchive.CreateAsync(h.Response.Body, ZipArchiveMode.Create, leaveOpen: true, entryNameEncoding: Encoding.UTF8, ct);
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var m in items)
+        {
+            var name = Unique(used, $"{Safe(tabNames.GetValueOrDefault(m.TabId, "tab"))}/{Safe(m.OriginalFileName)}");
+            var entry = zip.CreateEntry(name, CompressionLevel.NoCompression);
+            await using var dst = await entry.OpenAsync(ct);
+            await using var src = storage.OpenRead(m.StorageKey + "/original");
+            await src.CopyToAsync(dst, ct);
+        }
+
+        return Results.Empty;
     }
 
     internal static string Safe(string s)
