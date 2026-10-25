@@ -320,6 +320,30 @@ public sealed class OwnerEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task Media_Listing_Marks_CanDelete_For_Owner_And_Uploader_Only()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var guest = $"guest-{Guid.NewGuid():N}@example.com";
+        var (token, eventId) = await _app.CreateEventAsync(owner);
+        var ownerClient = _app.CreateClient();
+        await _app.SignInAsync(ownerClient, token, owner);
+        var created = await ownerClient.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "A", AllowGuestUploads = false });
+        var tabId = (await created.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        await AddMediaAsync(eventId, owner, tabId);   // uploaded by the owner
+
+        var ownerList = await ownerClient.GetFromJsonAsync<TabMediaDto[]>(U($"/api/e/{token}/tabs/{tabId}/media"), _json);
+        Assert.True(Assert.Single(ownerList!).CanDelete);
+
+        var guestClient = _app.CreateClient();
+        await _app.SignInAsync(guestClient, token, guest);
+        var guestList = await guestClient.GetFromJsonAsync<TabMediaDto[]>(U($"/api/e/{token}/tabs/{tabId}/media"), _json);
+        Assert.False(Assert.Single(guestList!).CanDelete);
+    }
+
+    [SuppressMessage("Performance", "CA1812", Justification = "Instantiated by the JSON serializer.")]
+    internal sealed record TabMediaDto(Guid Id, string Uploader, bool CanDelete);
+
+    [Fact]
     public async Task Request_Code_Is_Limited_Per_Window()
     {
         var owner = $"owner-{Guid.NewGuid():N}@example.com";

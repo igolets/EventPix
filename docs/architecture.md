@@ -105,7 +105,7 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | PATCH `/tabs/{id}` `{name?, allowGuestUploads?}` | owner or tab owner | Rename any tab; only owners toggle Section guest uploads. Duplicate Author tab name -> 409 `name_in_use` |
 | PUT `/tabs/order` `{ids}` | owner | Reorder section tabs (listed order first, then the rest) |
 | DELETE `/tabs/{id}` | owner or tab owner | Remove tab + its media rows + blobs (members: own Author tabs only) |
-| GET `/tabs/{id}/media?skip&take` | session | Page of items (with `starred`) |
+| GET `/tabs/{id}/media?skip&take` | session | Page of items (with `starred`, `canDelete` = uploader or owner) |
 | GET/POST/DELETE `/invites` | owner | Invite list for InviteOnly events (add pre-registered e-mails, see who joined) |
 | GET `/media/{id}/{thumb\|preview\|original}[?download=true]` | session | Bytes. Original supports HTTP Range for video |
 | POST `/uploads[?tab=id]` multipart `files` | session | Upload; default = own tab |
@@ -158,7 +158,8 @@ Codes are purged opportunistically; messages never log their contents.
 Core JS has no markup/styling. A theme folder provides:
 * `index.html`: shell that loads `/theme/theme.css` and `/app/app.js`, has `<div id="app">`.
 * `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `unsubscribe`, `not-found`,
-  `subscriptions`, `sub-row`, `tab-editor`, plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
+  `subscriptions`, `sub-row`, `tab-editor`, `tab-manage`, `tab-manage-row`, `invites`, `invite-row`,
+  plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
   Translations are additional `<template data-tpl="strings" data-lang="ru">` variants; the browser language
   picks one (primary-subtag match), and a `?lang=xx` query parameter overrides it.
 * `theme.css` and any assets (`/theme/<file>`).
@@ -169,11 +170,21 @@ and `data-i18n-aria="key"` sets the `aria-label`; keep them on leaf elements. Th
 rendered view, so a theme is localisable purely through its `strings` templates.
 Gallery hooks beyond the basics: `select` (toggle multi-select), `download-selected` (POSTs `/download`),
 `progress` (upload bar), `sentinel` (infinite-scroll marker; without it only the first page loads),
-`subscribe` (opens the notifications dialog), `tab-add` (opens the new-tab dialog) and `tab-rename`
-(opens the rename dialog; hidden unless the selected tab is renameable by the caller).
+`subscribe` (opens the notifications dialog), `tab-add` (opens the new-tab dialog), `tab-rename`
+(opens the rename dialog; hidden unless the selected tab is renameable by the caller), and the owner-only
+`manage-tabs` (tab administration dialog) and `invites` (invite management dialog) — both hidden unless
+`GET /me` reports `isOwner`.
 The `tab-editor` dialog needs `data-ref="title|close|form|name|message|delete"`; it creates personal tabs
-via `POST /tabs {name, personal:true}`, renames via `PATCH /tabs/{id}`, and — for the caller's own tabs —
-deletes via `DELETE /tabs/{id}` behind a two-step armed `delete` button.
+via `POST /tabs {name, personal:true}`, renames via `PATCH /tabs/{id}`, and — for tabs the caller may
+delete (own, or any as owner) — deletes via `DELETE /tabs/{id}` behind a two-step armed `delete` button.
+The `tab-manage` dialog needs `data-ref="close|list|form|name|message"`; it adds section tabs
+(`POST /tabs {name}` as owner), and each `tab-manage-row` needs `data-ref="label|guests|up|down|delete"`:
+the checkbox PATCHes `allowGuestUploads` (sections only), the arrows reorder sections via `PUT /tabs/order`,
+and the armed `delete` removes the tab with all its media. The `invites` dialog needs
+`data-ref="close|list|empty|form|email|message"`; each `invite-row` needs `data-ref="label|state|remove"` —
+the core lists, adds and deletes invites (owner only).
+Tiles expose an optional `delete` hook (owner or uploader; per-item `canDelete` from the media listing):
+first click arms it, second deletes via `DELETE /media/{id}`; the lightbox offers the same armed `delete`.
 The `unsubscribe` template needs `data-ref="title"` and `data-ref="message"`; the core confirms the unsubscribe
 by POSTing to `/api/unsubscribe/{id}/{sig}` and writes the outcome via `textContent`.
 The `subscriptions` dialog needs `data-ref="title|close|list|empty|form|channel|tab|mode|message"`; each
@@ -184,8 +195,10 @@ via `DELETE /subscriptions/{id}`.
 State is exposed to CSS as attributes and properties — the core never sets classes for looks:
 * every rendered view carries `data-tpl="<name>"`;
 * gallery shell: `data-uploading=true|false`, `data-selecting=true|false`, progress element gets `--progress: 0-100%`;
-* tiles: `data-kind`, `data-starred`, `data-selected`, `aria-selected` on tabs, `--ratio` on tiles;
-* lightbox: `data-starred`, `data-zoom=true` while zoomed; grid: `data-complete=true` when no more pages.
+* tiles: `data-kind`, `data-starred`, `data-selected`, `data-candelete`, `data-armed` while the delete is armed,
+  `aria-selected` on tabs, `--ratio` on tiles;
+* lightbox: `data-starred`, `data-armed`, `data-zoom=true` while zoomed; grid: `data-complete=true` when no more pages;
+* manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed.
 
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
 `codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `downloadTab`, `downloadStarred`, `downloadAll`,
@@ -194,9 +207,11 @@ i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eye
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
 `subsTelegramOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadFailed`, `unsubTitle`,
 `unsubOk`, `unsubInvalid`, `unsubBadLink`, `tabNew`, `tabRename`, `tabCreateTitle`, `tabRenameTitle`,
-`tabNameLabel`, `tabSave`, `tabDelete`, `tabDeleteArmed`, `tabNameInUse`, `tabFail`, and the `aria*`
+`tabNameLabel`, `tabSave`, `tabDelete`, `tabDeleteArmed`, `tabNameInUse`, `tabFail`, `manageTabs`,
+`manageTitle`, `addSection`, `guestUploads`, `invites`, `invitesTitle`, `invitesEmailLabel`, `invitesAdd`,
+`invitesEmpty`, `invitesJoined`, `invitesPending`, `inviteFail`, `mediaDeleteArmed`, and the `aria*`
 labels (`ariaOpen`, `ariaStar`, `ariaClose`, `ariaPrev`, `ariaNext`, `ariaFullscreen`, `ariaDownload`,
-`ariaRename`).
+`ariaRename`, `ariaDelete`, `ariaUp`, `ariaDown`).
 
 The core only writes text via `textContent`. CSP forbids inline script/style and remote hosts, so ship fonts and images inside the theme folder.
 Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.
@@ -264,4 +279,6 @@ Workflows: `.github/workflows/dotnet.yml` (build, tests, vulnerable-package chec
    `unsupported_type` error; iPhone guests can switch the camera to "Most Compatible" (JPEG).
 2. Video: transcode to a web-friendly H.264 preview? (CPU heavy; make it optional.)
 3. ~~Telegram linking UX~~ — decided: deep link `t.me/bot?start=<code>` minted by the web UI (M3).
-4. Owner admin web UI (tabs, members, moderation) vs. staying CLI-only.
+4. ~~Owner admin web UI vs. staying CLI-only~~ — decided: the owner UI manages tabs (create sections, rename,
+   reorder, per-section guest uploads, delete), invites and media moderation directly; the CLI remains for
+   creating events, rotating tokens and bulk invites.

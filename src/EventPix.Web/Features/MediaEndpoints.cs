@@ -11,7 +11,8 @@ using Microsoft.Extensions.Options;
 namespace EventPix.Web.Features;
 
 internal sealed record MediaDto(
-    Guid Id, MediaKind Kind, MediaStatus Status, string Name, int? Width, int? Height, long Size, string Uploader, bool Starred);
+    Guid Id, MediaKind Kind, MediaStatus Status, string Name, int? Width, int? Height, long Size, string Uploader,
+    bool Starred, bool CanDelete);
 
 internal static class MediaEndpoints
 {
@@ -31,6 +32,7 @@ internal static class MediaEndpoints
     {
         var (ev, me) = h.GetScope();
         var meId = me!.Id;
+        var isOwner = me.Role == MemberRole.Owner;
         if (!await db.Tabs.AnyAsync(t => t.Id == tabId && t.EventId == ev.Id, ct))
         {
             return Results.NotFound();
@@ -42,7 +44,8 @@ internal static class MediaEndpoints
             .Skip(Math.Max(0, skip ?? 0)).Take(Math.Clamp(take ?? 120, 1, 300))
             .Select(m => new MediaDto(m.Id, m.Kind, m.Status, m.OriginalFileName, m.Width, m.Height, m.SizeBytes,
                 db.Members.Where(u => u.Id == m.UploaderId).Select(u => u.DisplayName).FirstOrDefault() ?? "",
-                db.Stars.Any(s => s.MemberId == meId && s.MediaId == m.Id)))
+                db.Stars.Any(s => s.MemberId == meId && s.MediaId == m.Id),
+                m.UploaderId == meId || isOwner))
             .ToListAsync(ct);
         return Results.Ok(items);
     }

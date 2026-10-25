@@ -42,6 +42,8 @@
       <button class="btn" data-ref="select" type="button" aria-pressed="false" data-i18n="select">Select</button>
       <button class="btn" data-ref="tab-add" type="button" data-i18n="tabNew">New tab</button>
       <button class="btn" data-ref="tab-rename" type="button" hidden data-i18n="tabRename">Rename</button>
+      <button class="btn" data-ref="manage-tabs" type="button" hidden data-i18n="manageTabs">Manage tabs</button>
+      <button class="btn" data-ref="invites" type="button" hidden data-i18n="invites">Invites</button>
       <button class="btn btn-primary" data-ref="download-selected" type="button" hidden>Download selected</button>
       <span class="progress" data-ref="progress" aria-hidden="true"></span>
       <span class="muted" data-ref="status" role="status"></span>
@@ -62,6 +64,7 @@
   <figure class="tile">
     <button class="tile-open" data-ref="open" type="button" aria-label="Open" data-i18n-aria="ariaOpen"><img data-ref="image" loading="lazy" decoding="async" alt=""><span class="play" aria-hidden="true">▶</span></button>
     <button class="tile-star" data-ref="star" type="button" aria-label="Star" data-i18n-aria="ariaStar">★</button>
+    <button class="tile-delete" data-ref="delete" type="button" aria-label="Delete" data-i18n-aria="ariaDelete">✕</button>
   </figure>
 </template>
 
@@ -75,6 +78,7 @@
       <button class="lb-btn lb-star" data-ref="star" aria-label="Star" data-i18n-aria="ariaStar">★</button>
       <a class="lb-btn" data-ref="download" href="#" aria-label="Download" data-i18n-aria="ariaDownload">⬇</a>
       <button class="lb-btn" data-ref="fullscreen" aria-label="Full screen" data-i18n-aria="ariaFullscreen">⛶</button>
+      <button class="lb-btn lb-delete" data-ref="delete" type="button" aria-label="Delete" data-i18n-aria="ariaDelete">✕</button>
       <button class="lb-btn" data-ref="close" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
     </div>
   </div>
@@ -149,6 +153,61 @@
   </div>
 </template>
 
+<template data-tpl="tab-manage">
+  <div class="dialog">
+    <section class="card tab-manage">
+      <header>
+        <h2 data-i18n="manageTitle">Manage tabs</h2>
+        <button class="btn btn-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <ul class="manage-list" data-ref="list"></ul>
+      <form class="stack" data-ref="form">
+        <label for="manage-section-name" data-i18n="tabNameLabel">Name</label>
+        <input id="manage-section-name" data-ref="name" maxlength="100" autocomplete="off" required>
+        <button class="btn btn-primary" type="submit" data-i18n="addSection">Add section</button>
+      </form>
+      <p class="error" data-ref="message" role="alert"></p>
+    </section>
+  </div>
+</template>
+
+<template data-tpl="tab-manage-row">
+  <li class="manage-row">
+    <span class="manage-label" data-ref="label"></span>
+    <label class="manage-guest"><input type="checkbox" data-ref="guests"> <span data-i18n="guestUploads">Guests may upload</span></label>
+    <button class="btn btn-ghost manage-move" data-ref="up" type="button" aria-label="Move up" data-i18n-aria="ariaUp">↑</button>
+    <button class="btn btn-ghost manage-move" data-ref="down" type="button" aria-label="Move down" data-i18n-aria="ariaDown">↓</button>
+    <button class="btn btn-danger manage-delete" data-ref="delete" type="button" data-i18n="tabDelete">Delete</button>
+  </li>
+</template>
+
+<template data-tpl="invites">
+  <div class="dialog">
+    <section class="card invites">
+      <header>
+        <h2 data-i18n="invitesTitle">Invites</h2>
+        <button class="btn btn-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <ul class="subs-list" data-ref="list"></ul>
+      <p class="muted" data-ref="empty" data-i18n="invitesEmpty">No invites yet.</p>
+      <form class="stack" data-ref="form">
+        <label for="invite-email" data-i18n="invitesEmailLabel">E-mail</label>
+        <input id="invite-email" data-ref="email" type="email" autocomplete="off" required>
+        <button class="btn btn-primary" type="submit" data-i18n="invitesAdd">Invite</button>
+      </form>
+      <p class="error" data-ref="message" role="alert"></p>
+    </section>
+  </div>
+</template>
+
+<template data-tpl="invite-row">
+  <li class="sub-row">
+    <span class="sub-label" data-ref="label"></span>
+    <span class="invite-state muted" data-ref="state"></span>
+    <button class="sub-remove" data-ref="remove" type="button" aria-label="Remove" data-i18n-aria="subsRemove">✕</button>
+  </li>
+</template>
+
 <!-- UI strings the core writes via textContent (i18n). The base template is the English fallback; add more
      <template data-tpl="strings" data-lang="xx"> variants to translate — the browser language (or ?lang=xx)
      picks one. Keep each template a single JSON object. Key list: docs/architecture.md#theming-contract. -->
@@ -192,7 +251,23 @@
   "tabDeleteArmed": "Really delete?",
   "tabNameInUse": "You already have a tab with that name.",
   "tabFail": "Could not save the tab.",
-  "ariaRename": "Rename tab"
+  "manageTabs": "Manage tabs",
+  "manageTitle": "Manage tabs",
+  "addSection": "Add section",
+  "guestUploads": "Guests may upload",
+  "invites": "Invites",
+  "invitesTitle": "Invites",
+  "invitesEmailLabel": "E-mail",
+  "invitesAdd": "Invite",
+  "invitesEmpty": "No invites yet.",
+  "invitesJoined": "joined",
+  "invitesPending": "pending",
+  "inviteFail": "Could not save the invite.",
+  "mediaDeleteArmed": "Really delete?",
+  "ariaRename": "Rename tab",
+  "ariaDelete": "Delete",
+  "ariaUp": "Move up",
+  "ariaDown": "Move down"
 }</template>
 
 <template data-tpl="strings" data-lang="ru">{
@@ -256,5 +331,21 @@
   "tabDeleteArmed": "Точно удалить?",
   "tabNameInUse": "Вкладка с таким названием у вас уже есть.",
   "tabFail": "Не удалось сохранить вкладку.",
-  "ariaRename": "Переименовать вкладку"
+  "manageTabs": "Управление вкладками",
+  "manageTitle": "Управление вкладками",
+  "addSection": "Добавить раздел",
+  "guestUploads": "Гости могут загружать",
+  "invites": "Приглашения",
+  "invitesTitle": "Приглашения",
+  "invitesEmailLabel": "E-mail",
+  "invitesAdd": "Пригласить",
+  "invitesEmpty": "Приглашений пока нет.",
+  "invitesJoined": "присоединился",
+  "invitesPending": "ожидает",
+  "inviteFail": "Не удалось сохранить приглашение.",
+  "mediaDeleteArmed": "Точно удалить?",
+  "ariaRename": "Переименовать вкладку",
+  "ariaDelete": "Удалить",
+  "ariaUp": "Выше",
+  "ariaDown": "Ниже"
 }</template>

@@ -78,6 +78,22 @@ label { font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; col
   background: var(--ink); color: var(--dim); opacity: 0; transition: opacity .15s; font-size: .95rem; cursor: pointer; }
 .frame-item:hover .mark, .mark:focus-visible, .frame-item[data-starred=true] .mark { opacity: 1; }
 .frame-item[data-starred=true] .mark { color: var(--mark); border-color: var(--mark); }
+.strip { display: none; position: absolute; top: 6px; left: 6px; width: 32px; height: 32px; border: 1px solid var(--line2);
+  background: var(--ink); color: var(--dim); font-size: .95rem; cursor: pointer; }
+.frame-item[data-candelete=true] .strip { display: block; opacity: 0; transition: opacity .15s; }
+.frame-item:hover .strip, .strip:focus-visible { opacity: 1; }
+@media (hover: none) { .frame-item[data-candelete=true] .strip { opacity: 1; } }
+.frame-item[data-armed=true] .strip { opacity: 1; width: auto; height: auto; padding: .1rem .5rem; color: var(--bad); border-color: var(--bad); font-size: .75rem; }
+.darkroom [data-armed=true].knob { color: var(--bad); border-color: var(--bad); }
+
+/* owner admin dialogs */
+.manage-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.manage-row + .manage-row { border-top: 1px solid var(--line2); padding-top: .6rem; }
+.manage-label { flex: 1; min-width: 8rem; }
+.manage-guest { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--dim); }
+.manage-move:disabled { opacity: .3; cursor: default; }
+.manage-row[data-armed=true] .manage-delete { color: var(--bad); border-color: var(--bad); }
 @media (hover: none) { .mark { opacity: 1; } }
 
 /* darkroom (lightbox) */
