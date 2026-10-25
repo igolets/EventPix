@@ -12,7 +12,7 @@ star favourites and download files, tabs, the whole library, or just the starred
 * The UI theme is a plain folder of HTML templates + CSS. Change the look without touching C#.
 * MIT licensed.
 
-> Status: **scaffold**. See `AGENTS.md` for the roadmap and `docs/architecture.md` for the design.
+See `AGENTS.md` for the roadmap and `docs/architecture.md` for the design.
 
 ## Quick start
 
@@ -37,6 +37,23 @@ docker run -d -p 127.0.0.1:8080:8080 -v eventpix-data:/data -v eventpix-media:/m
 docker compose up -d
 docker compose exec eventpix dotnet EventPix.Web.dll create-event "Anna & Tom" owner@example.com
 ```
+
+## Administration
+
+There is no admin panel: administration is the **owner role** plus a small CLI. Sign in through the
+event URL with the owner e-mail to manage tabs, invites and media in the web UI. Server-side tasks
+run as CLI commands against the configured `EventPix:DataPath`:
+
+```bash
+dotnet run --project src/EventPix.Web -- create-event "Anna & Tom" owner@example.com [--invite-only]
+dotnet run --project src/EventPix.Web -- list-events
+dotnet run --project src/EventPix.Web -- add-invites {eventId} email1 [email2 ...]
+dotnet run --project src/EventPix.Web -- rotate-token {eventId}   # invalidates a leaked link
+```
+
+In Docker, prefix with `docker compose exec eventpix`, e.g.
+`docker compose exec eventpix dotnet EventPix.Web.dll list-events`.
+
 
 ## Theming
 

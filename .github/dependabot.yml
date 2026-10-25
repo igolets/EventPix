@@ -1,0 +1,12 @@
+# Weekly dependency updates. Actions are pinned by commit SHA; Dependabot updates the pinned
+# SHAs and their `# vX.Y.Z` comments together.
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
