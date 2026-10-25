@@ -72,8 +72,10 @@ erDiagram
 ```
 
 Notes
-* **Tab.Kind**: `Section` (curated by the owner: "Ceremony", "Party") or `Author` (one per guest, created on first upload).
-  Guests upload to their own Author tab by default; to a Section only if `AllowGuestUploads`.
+* **Tab.Kind**: `Section` (curated by the owner: "Ceremony", "Party") or `Author` (personal tabs). Every member
+  gets one Author tab automatically on their first upload (named after their display name), and can create any
+  number of named Author tabs from the UI. A member's Author tab names are unique (DB-enforced). Only the tab's
+  owner and the event owner may upload to an Author tab; Sections accept guest uploads only if `AllowGuestUploads`.
 * **Stars are per member** and private; "download starred" uses the caller's stars.
 * **Timestamps are UTC `DateTime`** (SQLite cannot order `DateTimeOffset` server-side).
 * **Ids are GUID v7** (time-ordered, index friendly). Security never relies on id secrecy; authorisation is always checked.
@@ -99,10 +101,10 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | POST `/auth/verify` `{email, code}` | no, rate-limited | Set session cookie |
 | POST `/auth/logout` | no | Clear cookie |
 | GET `/me`, PUT `/me` | session | Profile |
-| GET `/tabs`; POST `/tabs` | session; owner | List (counts, canUpload) / create section |
-| PATCH `/tabs/{id}` `{name?, allowGuestUploads?}` | owner | Rename section / toggle guest uploads (author tabs keep the guest's display name) |
+| GET `/tabs`; POST `/tabs` | session | List (counts, canUpload, canRename) / create tab: `personal:true` (or any non-owner) creates a named Author tab owned by the caller; owners may omit it to create a Section. Duplicate Author tab name -> 409 `name_in_use` |
+| PATCH `/tabs/{id}` `{name?, allowGuestUploads?}` | owner or tab owner | Rename any tab; only owners toggle Section guest uploads. Duplicate Author tab name -> 409 `name_in_use` |
 | PUT `/tabs/order` `{ids}` | owner | Reorder section tabs (listed order first, then the rest) |
-| DELETE `/tabs/{id}` | owner | Remove tab + its media rows + blobs |
+| DELETE `/tabs/{id}` | owner or tab owner | Remove tab + its media rows + blobs (members: own Author tabs only) |
 | GET `/tabs/{id}/media?skip&take` | session | Page of items (with `starred`) |
 | GET/POST/DELETE `/invites` | owner | Invite list for InviteOnly events (add pre-registered e-mails, see who joined) |
 | GET `/media/{id}/{thumb\|preview\|original}[?download=true]` | session | Bytes. Original supports HTTP Range for video |
@@ -156,7 +158,7 @@ Codes are purged opportunistically; messages never log their contents.
 Core JS has no markup/styling. A theme folder provides:
 * `index.html`: shell that loads `/theme/theme.css` and `/app/app.js`, has `<div id="app">`.
 * `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `unsubscribe`, `not-found`,
-  `subscriptions`, `sub-row`, plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
+  `subscriptions`, `sub-row`, `tab-editor`, plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
   Translations are additional `<template data-tpl="strings" data-lang="ru">` variants; the browser language
   picks one (primary-subtag match), and a `?lang=xx` query parameter overrides it.
 * `theme.css` and any assets (`/theme/<file>`).
@@ -167,7 +169,11 @@ and `data-i18n-aria="key"` sets the `aria-label`; keep them on leaf elements. Th
 rendered view, so a theme is localisable purely through its `strings` templates.
 Gallery hooks beyond the basics: `select` (toggle multi-select), `download-selected` (POSTs `/download`),
 `progress` (upload bar), `sentinel` (infinite-scroll marker; without it only the first page loads),
-`subscribe` (opens the notifications dialog).
+`subscribe` (opens the notifications dialog), `tab-add` (opens the new-tab dialog) and `tab-rename`
+(opens the rename dialog; hidden unless the selected tab is renameable by the caller).
+The `tab-editor` dialog needs `data-ref="title|close|form|name|message|delete"`; it creates personal tabs
+via `POST /tabs {name, personal:true}`, renames via `PATCH /tabs/{id}`, and — for the caller's own tabs —
+deletes via `DELETE /tabs/{id}` behind a two-step armed `delete` button.
 The `unsubscribe` template needs `data-ref="title"` and `data-ref="message"`; the core confirms the unsubscribe
 by POSTing to `/api/unsubscribe/{id}/{sig}` and writes the outcome via `textContent`.
 The `subscriptions` dialog needs `data-ref="title|close|list|empty|form|channel|tab|mode|message"`; each
@@ -187,8 +193,10 @@ i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eye
 (`{name}`), `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsTab`, `subsAllTabs`, `subsMode`,
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
 `subsTelegramOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadFailed`, `unsubTitle`,
-`unsubOk`, `unsubInvalid`, `unsubBadLink`, and the `aria*` labels (`ariaOpen`, `ariaStar`, `ariaClose`,
-`ariaPrev`, `ariaNext`, `ariaFullscreen`, `ariaDownload`).
+`unsubOk`, `unsubInvalid`, `unsubBadLink`, `tabNew`, `tabRename`, `tabCreateTitle`, `tabRenameTitle`,
+`tabNameLabel`, `tabSave`, `tabDelete`, `tabDeleteArmed`, `tabNameInUse`, `tabFail`, and the `aria*`
+labels (`ariaOpen`, `ariaStar`, `ariaClose`, `ariaPrev`, `ariaNext`, `ariaFullscreen`, `ariaDownload`,
+`ariaRename`).
 
 The core only writes text via `textContent`. CSP forbids inline script/style and remote hosts, so ship fonts and images inside the theme folder.
 Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.

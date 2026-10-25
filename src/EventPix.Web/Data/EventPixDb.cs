@@ -44,6 +44,8 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
             t.Property(x => x.Name).HasMaxLength(100);
             t.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
             t.HasIndex(x => new { x.EventId, x.SortOrder });
+            t.HasIndex(x => new { x.EventId, x.OwnerMemberId, x.Name }).IsUnique()
+                .HasFilter($"[Kind] = {(int)TabKind.Author}");   // a member's author tabs have unique names
         });
 
         b.Entity<MediaItem>(m =>

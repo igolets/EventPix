@@ -6,8 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EventPix.Web.Features;
 
-internal sealed record TabDto(Guid Id, string Name, TabKind Kind, int Count, bool CanUpload, bool Mine);
-internal sealed record CreateTabDto(string? Name, bool AllowGuestUploads);
+internal sealed record TabDto(Guid Id, string Name, TabKind Kind, int Count, bool CanUpload, bool Mine, bool CanRename);
+internal sealed record CreateTabDto(string? Name, bool AllowGuestUploads, bool Personal);
 internal sealed record PatchTabDto(string? Name, bool? AllowGuestUploads);
 internal sealed record ReorderTabsDto(Guid[]? Ids);
 
@@ -31,17 +31,13 @@ internal static class TabsEndpoints
             var counts = await db.MediaItems.Where(m => m.EventId == ev.Id && m.Status == MediaStatus.Ready)
                 .GroupBy(m => m.TabId).Select(x => new { x.Key, N = x.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
             return Results.Ok(tabs.Select(t => new TabDto(
-                t.Id, t.Name, t.Kind, counts.GetValueOrDefault(t.Id), CanUploadTo(ev, me!, t), t.OwnerMemberId == me!.Id)));
+                t.Id, t.Name, t.Kind, counts.GetValueOrDefault(t.Id), CanUploadTo(ev, me!, t), t.OwnerMemberId == me!.Id,
+                me.Role == MemberRole.Owner || t.OwnerMemberId == me.Id)));
         });
 
         g.MapPost("/tabs", async (CreateTabDto dto, HttpContext h, EventPixDb db, CancellationToken ct) =>
         {
             var (ev, me) = h.GetScope();
-            if (me!.Role != MemberRole.Owner)
-            {
-                return Results.StatusCode(403);
-            }
-
             var name = dto.Name?.Trim();
             if (string.IsNullOrEmpty(name) || name.Length > 100)
             {
@@ -49,33 +45,40 @@ internal static class TabsEndpoints
             }
 
             var next = (await db.Tabs.Where(t => t.EventId == ev.Id).MaxAsync(t => (int?)t.SortOrder, ct) ?? 0) + 1;
-            var tab = new Tab { EventId = ev.Id, Name = name, Kind = TabKind.Section, SortOrder = next, AllowGuestUploads = dto.AllowGuestUploads };
+            var personal = dto.Personal || me!.Role != MemberRole.Owner;   // guests always create their own tabs
+            var tab = personal
+                ? new Tab { EventId = ev.Id, Name = name, Kind = TabKind.Author, OwnerMemberId = me!.Id, SortOrder = next }
+                : new Tab { EventId = ev.Id, Name = name, Kind = TabKind.Section, SortOrder = next, AllowGuestUploads = dto.AllowGuestUploads };
             db.Tabs.Add(tab);
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)   // the member already has an author tab with this name
+            {
+                return Results.Json(new { error = "name_in_use" }, statusCode: 409);
+            }
+
             return Results.Created($"tabs/{tab.Id}", new { tab.Id });
         });
 
         g.MapPatch("/tabs/{id:guid}", async (Guid id, PatchTabDto dto, HttpContext h, EventPixDb db, CancellationToken ct) =>
         {
             var (ev, me) = h.GetScope();
-            if (me!.Role != MemberRole.Owner)
-            {
-                return Results.StatusCode(403);
-            }
-
             var tab = await db.Tabs.FirstOrDefaultAsync(t => t.Id == id && t.EventId == ev.Id, ct);
             if (tab is null)
             {
                 return Results.NotFound();
             }
 
+            var isOwner = me!.Role == MemberRole.Owner;
+            if (!isOwner && tab.OwnerMemberId != me.Id)   // a member may rename their own author tabs only
+            {
+                return Results.StatusCode(403);
+            }
+
             if (dto.Name is not null)
             {
-                if (tab.Kind != TabKind.Section)
-                {
-                    return Results.Json(new { error = "author_tab_name_is_fixed" }, statusCode: 409);   // author tabs carry the guest's display name
-                }
-
                 var name = dto.Name.Trim();
                 if (string.IsNullOrEmpty(name) || name.Length > 100)
                 {
@@ -85,12 +88,20 @@ internal static class TabsEndpoints
                 tab.Name = name;
             }
 
-            if (dto.AllowGuestUploads is { } open && tab.Kind == TabKind.Section)
+            if (dto.AllowGuestUploads is { } open && tab.Kind == TabKind.Section && isOwner)
             {
                 tab.AllowGuestUploads = open;
             }
 
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)   // the member already has an author tab with this name
+            {
+                return Results.Json(new { error = "name_in_use" }, statusCode: 409);
+            }
+
             return Results.NoContent();
         });
 
@@ -132,15 +143,15 @@ internal static class TabsEndpoints
         g.MapDelete("/tabs/{id:guid}", async (Guid id, HttpContext h, EventPixDb db, IMediaStorage storage, CancellationToken ct) =>
         {
             var (ev, me) = h.GetScope();
-            if (me!.Role != MemberRole.Owner)
-            {
-                return Results.StatusCode(403);
-            }
-
             var tab = await db.Tabs.FirstOrDefaultAsync(t => t.Id == id && t.EventId == ev.Id, ct);
             if (tab is null)
             {
                 return Results.NotFound();
+            }
+
+            if (me!.Role != MemberRole.Owner && (tab.Kind != TabKind.Author || tab.OwnerMemberId != me.Id))
+            {
+                return Results.StatusCode(403);   // members may delete only their own author tabs
             }
 
             var keys = await db.MediaItems.Where(m => m.TabId == id && m.EventId == ev.Id)

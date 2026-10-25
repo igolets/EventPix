@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -205,12 +206,117 @@ public sealed class OwnerEndpointsTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync(U($"/api/e/{token}/tabs/order"),
             new { Ids = new[] { tabId, tabId } })).StatusCode);
 
-        // Author tabs carry the guest's display name: renaming is refused, empty patch is fine.
+        // Author tabs are renameable now; an empty patch is still fine.
         var authorTabId = await AddAuthorTabAsync(eventId, owner);
-        Assert.Equal(HttpStatusCode.Conflict, (await client.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{authorTabId}"),
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{authorTabId}"),
             new { Name = "X" })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{authorTabId}"),
             new { })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Owner_Creates_Personal_Tabs_And_Others_Cannot_Use_Them()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var guest = $"guest-{Guid.NewGuid():N}@example.com";
+        var (token, eventId) = await _app.CreateEventAsync(owner);
+        var ownerClient = _app.CreateClient();
+        await _app.SignInAsync(ownerClient, token, owner);
+
+        // Two named personal tabs.
+        var beach = await ownerClient.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "Beach", Personal = true });
+        var hike = await ownerClient.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "Hike", Personal = true });
+        Assert.Equal(HttpStatusCode.Created, beach.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, hike.StatusCode);
+        var idBeach = (await beach.Content.ReadFromJsonAsync<IdDto>())!.Id;
+        var idHike = (await hike.Content.ReadFromJsonAsync<IdDto>())!.Id;
+
+        var tabs = await ownerClient.GetFromJsonAsync<TabDto[]>(U($"/api/e/{token}/tabs"), _json);
+        Assert.Contains(tabs!, t => t.Id == idBeach && t.Kind == TabKind.Author && t.Mine && t.CanRename);
+        Assert.Contains(tabs!, t => t.Id == idHike && t.Kind == TabKind.Author && t.Mine && t.CanRename);
+
+        // Rename works; a name collision with another own tab is refused.
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await ownerClient.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{idBeach}"), new { Name = "Sunset" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await ownerClient.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{idHike}"), new { Name = "Sunset" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await ownerClient.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "Sunset", Personal = true })).StatusCode);
+
+        // The owner uploads into a selected personal tab.
+        var upload = await UploadAsync(ownerClient, token, idBeach, $"beach-{Guid.NewGuid():N}.jpg");
+        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+        var batch = await upload.Content.ReadFromJsonAsync<OpsTests.UploadBatch>();
+        Assert.Equal(idBeach, batch!.TabId);
+
+        // Guests can neither upload into nor manage the owner's personal tabs.
+        var guestClient = _app.CreateClient();
+        await _app.SignInAsync(guestClient, token, guest);
+        Assert.Equal(HttpStatusCode.Forbidden, (await UploadAsync(guestClient, token, idBeach, "x.jpg")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await guestClient.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{idBeach}"), new { Name = "Mine" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await guestClient.DeleteAsync(U($"/api/e/{token}/tabs/{idBeach}"))).StatusCode);
+
+        // The owner deletes their own personal tab.
+        Assert.Equal(HttpStatusCode.NoContent, (await ownerClient.DeleteAsync(U($"/api/e/{token}/tabs/{idHike}"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Guest_Names_The_Default_Tab_And_Creates_Own_Tabs()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var guest = $"guest-{Guid.NewGuid():N}@example.com";
+        var other = $"other-{Guid.NewGuid():N}@example.com";
+        var (token, eventId) = await _app.CreateEventAsync(owner);
+
+        var guestClient = _app.CreateClient();
+        await _app.SignInAsync(guestClient, token, guest);
+
+        // A first upload creates the default author tab named after the display name...
+        var upload = await UploadAsync(guestClient, token, tabId: null, $"first-{Guid.NewGuid():N}.jpg");
+        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+        var batch = await upload.Content.ReadFromJsonAsync<OpsTests.UploadBatch>();
+        var defaultTabId = batch!.TabId;
+
+        // ...and the guest renames it away from the e-mail-derived name.
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await guestClient.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{defaultTabId}"), new { Name = "My shots" })).StatusCode);
+
+        // Additional named personal tab.
+        var created = await guestClient.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "Second day", Personal = true });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var secondId = (await created.Content.ReadFromJsonAsync<IdDto>())!.Id;
+
+        // Uploads into a selected personal tab land there.
+        var upload2 = await UploadAsync(guestClient, token, secondId, $"second-{Guid.NewGuid():N}.jpg");
+        Assert.Equal(HttpStatusCode.OK, upload2.StatusCode);
+        var batch2 = await upload2.Content.ReadFromJsonAsync<OpsTests.UploadBatch>();
+        Assert.Equal(secondId, batch2!.TabId);
+
+        // Other members cannot upload into, rename or delete the guest's tabs.
+        var otherClient = _app.CreateClient();
+        await _app.SignInAsync(otherClient, token, other);
+        Assert.Equal(HttpStatusCode.Forbidden, (await UploadAsync(otherClient, token, defaultTabId, "x.jpg")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await otherClient.PatchAsJsonAsync(U($"/api/e/{token}/tabs/{secondId}"), new { Name = "Hacked" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await otherClient.DeleteAsync(U($"/api/e/{token}/tabs/{secondId}"))).StatusCode);
+
+        // The same tab name is fine for a different member: uniqueness is per (member, name).
+        Assert.Equal(HttpStatusCode.Created,
+            (await otherClient.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "My shots", Personal = true })).StatusCode);
+    }
+
+    private static int _seq;
+
+    private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, string token, Guid? tabId, string name)
+    {
+        using var form = new MultipartFormDataContent();
+        var jpeg = TestJpeg.Asymmetric(taken: $"2026:05:17 14:30:{Interlocked.Increment(ref _seq) % 60:00}");
+        using var content = new ByteArrayContent(jpeg);
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        form.Add(content, "files", name);
+        var path = tabId is null ? $"/api/e/{token}/uploads" : $"/api/e/{token}/uploads?tab={tabId}";
+        return await client.PostAsync(U(path), form);
     }
 
     [Fact]

@@ -88,6 +88,39 @@ public sealed class UploadPipelineTests : IDisposable
         Assert.True((await zip.Content.ReadAsByteArrayAsync()).Length > 0);
     }
 
+    /// <summary>
+    /// Regression: parallel uploads without a tab (the UI fires one request per file) must all land in the
+    /// member's single author tab instead of racing find-or-create into one tab per file.
+    /// </summary>
+    [Fact]
+    public async Task Parallel_Uploads_Without_A_Tab_Share_One_Author_Tab()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var (token, eventId) = await _app.CreateEventAsync(owner);
+        var client = _app.CreateClient();
+        await _app.SignInAsync(client, token, owner);
+
+        var uploads = Enumerable.Range(0, 4).Select((i) => Task.Run(async () =>
+        {
+            using var form = new MultipartFormDataContent();
+            var jpeg = TestJpeg.Asymmetric(taken: $"2026:05:17 14:30:0{i}");   // distinct bytes: no duplicate rejection
+            var content = new ByteArrayContent(jpeg);
+            content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+            form.Add(content, "files", $"photo{i}.jpg");
+            return await client.PostAsync(U($"/api/e/{token}/uploads"), form);
+        }));
+        var responses = await Task.WhenAll(uploads);
+        Assert.All(responses, (r) => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+
+        using var scope = _app.Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+        var authorTabs = await db.Tabs.Where(t => t.EventId == eventId && t.Kind == TabKind.Author).ToListAsync();
+        var tab = Assert.Single(authorTabs);
+        var media = await db.MediaItems.Where(m => m.EventId == eventId).ToListAsync();
+        Assert.Equal(4, media.Count);
+        Assert.All(media, (m) => Assert.Equal(tab.Id, m.TabId));
+    }
+
     private static readonly System.Text.Json.JsonSerializerOptions _json = new(
         System.Text.Json.JsonSerializerDefaults.Web)
     {

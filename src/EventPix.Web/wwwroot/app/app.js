@@ -60,6 +60,16 @@ const DEFAULT_STRINGS = {
   unsubOk: 'You have been unsubscribed. You will not receive any more notifications for this album.',
   unsubInvalid: 'This link is not valid or you are already unsubscribed.',
   unsubBadLink: 'This link is not valid.',
+  tabNew: 'New tab',
+  tabRename: 'Rename',
+  tabCreateTitle: 'New tab',
+  tabRenameTitle: 'Rename tab',
+  tabNameLabel: 'Name',
+  tabSave: 'Save',
+  tabDelete: 'Delete tab',
+  tabDeleteArmed: 'Really delete?',
+  tabNameInUse: 'You already have a tab with that name.',
+  tabFail: 'Could not save the tab.',
   ariaOpen: 'Open',
   ariaStar: 'Star',
   ariaClose: 'Close',
@@ -67,6 +77,7 @@ const DEFAULT_STRINGS = {
   ariaNext: 'Next',
   ariaFullscreen: 'Full screen',
   ariaDownload: 'Download',
+  ariaRename: 'Rename tab',
 };
 
 const t = (key, params) => {
@@ -134,6 +145,8 @@ async function showGallery(info) {
   ref(view, 'signout').addEventListener('click', async () => { await api('/auth/logout', { method: 'POST' }); location.reload(); });
   ref(view, 'upload-input').addEventListener('change', (e) => upload(view, [...e.target.files], e.target));
   ref(view, 'subscribe').addEventListener('click', () => openSubscriptions());
+  ref(view, 'tab-add').addEventListener('click', () => openTabEditor());
+  ref(view, 'tab-rename').addEventListener('click', () => openTabEditor(state.tab));
 
   const selectBtn = ref(view, 'select');
   selectBtn.addEventListener('click', () => setSelecting(view, !state.selecting));
@@ -176,10 +189,57 @@ async function selectTab(id) {
   state.tab = state.tabs.find((t2) => t2.id === id) ?? null;
   for (const b of ref(state.view, 'tabs').children) b.setAttribute('aria-selected', String(b.dataset.tabId === id));
   ref(state.view, 'download-tab').href = `${base}/download?tab=${id}`;
+  ref(state.view, 'tab-rename').hidden = !state.tab?.canRename;
   state.items = [];
   state.complete = false;
   ref(state.view, 'grid').replaceChildren();
   await loadMore();
+}
+
+// ---- tabs: create / rename / delete via a small dialog -------------------------------------------------
+async function openTabEditor(tab) {
+  const dialog = tpl('tab-editor');
+  const name = ref(dialog, 'name');
+  const message = ref(dialog, 'message');
+  const del = ref(dialog, 'delete');
+  const close = () => { document.removeEventListener('keydown', onKey); dialog.remove(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  ref(dialog, 'close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+
+  if (tab) {
+    text(dialog, 'title', t('tabRenameTitle'));
+    name.value = tab.name;
+    let armed = false;
+    if (tab.mine) {
+      del.hidden = false;
+      del.addEventListener('click', async () => {
+        if (!armed) { armed = true; del.textContent = t('tabDeleteArmed'); return; }
+        const res = await api(`/tabs/${tab.id}`, { method: 'DELETE' });
+        if (!res.ok) { message.textContent = t('tabFail'); return; }
+        close();
+        state.tab = null;   // gone: fall back to the first tab
+        await loadTabs();
+      });
+    }
+  } else {
+    text(dialog, 'title', t('tabCreateTitle'));
+  }
+
+  ref(dialog, 'form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const value = name.value.trim();
+    if (!value) return;
+    const res = tab
+      ? await api(`/tabs/${tab.id}`, { method: 'PATCH', ...jsonBody({ name: value }) })
+      : await api('/tabs', { method: 'POST', ...jsonBody({ name: value, personal: true }) });
+    if (!res.ok) { message.textContent = res.status === 409 ? t('tabNameInUse') : t('tabFail'); return; }
+    close();
+    await loadTabs(tab ? tab.id : (await res.json()).id);   // select the saved / created tab
+  });
+
+  document.body.append(dialog);
+  name.focus();
 }
 
 async function loadMore() {
