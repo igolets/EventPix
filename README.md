@@ -26,6 +26,13 @@ Without an `Smtp:Host`, sign-in codes are written to the console (Development on
 
 ## Docker
 
+Prebuilt image (amd64/arm64, published by CI):
+
+```bash
+docker run -d -p 127.0.0.1:8080:8080 -v eventpix-data:/data -v eventpix-media:/media ghcr.io/igolets/eventpix:latest
+```
+
+
 ```bash
 docker compose up -d
 docker compose exec eventpix dotnet EventPix.Web.dll create-event "Anna & Tom" owner@example.com
@@ -33,4 +40,4 @@ docker compose exec eventpix dotnet EventPix.Web.dll create-event "Anna & Tom" o
 
 ## Theming
 
-Copy `themes/default` to `themes/my-theme`, edit, set `EventPix:ActiveTheme`. See `docs/architecture.md#theming-contract`.
+Copy `themes/default` (or the dark `themes/mono`) to `themes/my-theme`, edit, set `EventPix:ActiveTheme`. See `docs/architecture.md#theming-contract`.

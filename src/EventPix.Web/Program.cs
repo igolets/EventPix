@@ -4,6 +4,7 @@ using EventPix.Web.Cli;
 using EventPix.Web.Configuration;
 using EventPix.Web.Data;
 using EventPix.Web.Features;
+using EventPix.Web.Health;
 using EventPix.Web.Media;
 using EventPix.Web.Notifications;
 using EventPix.Web.Security;
@@ -16,6 +17,10 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// No-op unless the app actually runs as a Windows service (see docs: service install + IIS reverse proxy).
+builder.Host.UseWindowsService();
+
 var cfg = builder.Configuration.GetSection(EventPixOptions.Section);
 var opts = cfg.Get<EventPixOptions>() ?? new EventPixOptions();
 var dataPath = Path.GetFullPath(opts.DataPath);
@@ -51,10 +56,13 @@ builder.Services.AddSingleton<MediaQueue>();
 builder.Services.AddSingleton<VideoFrameExtractor>();
 builder.Services.AddSingleton<VideoProbe>();
 builder.Services.AddSingleton<ITelegramBotGateway, TelegramBotGateway>();
+builder.Services.AddSingleton<IAntivirusScanner, NoAntivirusScanner>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddHostedService<MediaProcessingWorker>();
 builder.Services.AddHostedService<NotificationWorker>();
 builder.Services.AddHostedService<TelegramUpdateWorker>();
+builder.Services.AddTransient<DbReadyHealthCheck>();
+builder.Services.AddHealthChecks().AddCheck<DbReadyHealthCheck>("database", tags: ["ready"]);
 
 var smtpConfigured = !string.IsNullOrWhiteSpace(builder.Configuration[$"{SmtpOptions.Section}:Host"]);
 if (smtpConfigured)
@@ -172,6 +180,7 @@ app.UseRateLimiter();
 
 // ---- routes -------------------------------------------------------------------------------------------------
 app.MapGet("/robots.txt", () => Results.Text("User-agent: *\nDisallow: /\n"));
+app.MapHealthChecks("/healthz");
 app.MapGet("/e/{token}", () =>                                   // SPA shell supplied by the theme
     Results.File(Path.Combine(themeDir, "index.html"), "text/html"));
 // Unsubscribe page /u/{id}.{sig}: core JS renders the theme's "unsubscribe" template and calls the API below.
