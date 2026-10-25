@@ -17,3 +17,6 @@ pepper.key
 
 # Local test/coverage output
 TestResults/
+
+# SonarScanner local working directory
+.sonarqube/

@@ -50,9 +50,11 @@ builder.Services.AddSingleton<IMediaStorage, FileSystemMediaStorage>();
 builder.Services.AddSingleton<MediaQueue>();
 builder.Services.AddSingleton<VideoFrameExtractor>();
 builder.Services.AddSingleton<VideoProbe>();
+builder.Services.AddSingleton<ITelegramBotGateway, TelegramBotGateway>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddHostedService<MediaProcessingWorker>();
 builder.Services.AddHostedService<NotificationWorker>();
+builder.Services.AddHostedService<TelegramUpdateWorker>();
 
 var smtpConfigured = !string.IsNullOrWhiteSpace(builder.Configuration[$"{SmtpOptions.Section}:Host"]);
 if (smtpConfigured)

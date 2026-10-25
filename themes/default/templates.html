@@ -91,6 +91,42 @@
   <main class="login"><section class="card"><h1 data-i18n="notFoundTitle">Nothing here</h1><p class="muted" data-i18n="notFoundText">This link is not valid.</p></section></main>
 </template>
 
+<template data-tpl="subscriptions">
+  <div class="dialog">
+    <section class="card subs">
+      <header>
+        <h2 data-ref="title" data-i18n="subsTitle">Notifications</h2>
+        <button class="btn btn-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <ul class="subs-list" data-ref="list"></ul>
+      <p class="muted" data-ref="empty" data-i18n="subsEmpty">No notifications yet.</p>
+      <form class="stack" data-ref="form">
+        <label for="subs-channel" data-i18n="subsChannel">Channel</label>
+        <select id="subs-channel" data-ref="channel">
+          <option value="Email" data-i18n="subsEmail">E-mail</option>
+          <option value="Telegram" data-i18n="subsTelegram">Telegram</option>
+        </select>
+        <label for="subs-tab" data-i18n="subsTab">Album</label>
+        <select id="subs-tab" data-ref="tab"></select>
+        <label for="subs-mode" data-i18n="subsMode">Frequency</label>
+        <select id="subs-mode" data-ref="mode">
+          <option value="Instant" data-i18n="subsInstant">Instantly</option>
+          <option value="Digest" data-i18n="subsDigest">Daily digest</option>
+        </select>
+        <button class="btn btn-primary" type="submit" data-i18n="subsAdd">Save</button>
+      </form>
+      <p class="muted" data-ref="message" role="status"></p>
+    </section>
+  </div>
+</template>
+
+<template data-tpl="sub-row">
+  <li class="sub-row">
+    <span class="sub-label" data-ref="label"></span>
+    <button class="sub-remove" data-ref="remove" type="button" aria-label="Remove" data-i18n-aria="subsRemove">✕</button>
+  </li>
+</template>
+
 <!-- UI strings the core writes via textContent (i18n). The base template is the English fallback; add more
      <template data-tpl="strings" data-lang="xx"> variants to translate — the browser language (or ?lang=xx)
      picks one. Keep each template a single JSON object. Key list: docs/architecture.md#theming-contract. -->
@@ -101,8 +137,21 @@
   "uploading": "Uploading… {percent}%",
   "uploaded": "Uploaded {count} file(s). Preparing previews…",
   "uploadFailed": "Upload failed: {name}",
-  "subscribeOk": "You will get an e-mail when new files are added.",
-  "subscribeFail": "Could not subscribe.",
+  "subsTitle": "Notifications",
+  "subsChannel": "Channel",
+  "subsEmail": "E-mail",
+  "subsTelegram": "Telegram",
+  "subsTab": "Album",
+  "subsAllTabs": "All albums",
+  "subsMode": "Frequency",
+  "subsInstant": "Instantly",
+  "subsDigest": "Daily digest",
+  "subsAdd": "Save",
+  "subsEmpty": "No notifications yet.",
+  "subsRemove": "Remove",
+  "subsFail": "Could not save the subscription.",
+  "subsTelegramHint": "Open this link in Telegram to finish:",
+  "subsTelegramOff": "Telegram notifications are not configured on this server.",
   "select": "Select",
   "selecting": "Cancel selection",
   "downloadSelected": "Download selected ({count})",
@@ -134,8 +183,21 @@
   "uploading": "Загрузка… {percent}%",
   "uploaded": "Загружено файлов: {count}. Готовим миниатюры…",
   "uploadFailed": "Не удалось загрузить: {name}",
-  "subscribeOk": "Мы сообщим вам по e-mail, когда появятся новые файлы.",
-  "subscribeFail": "Не удалось подписаться на уведомления.",
+  "subsTitle": "Уведомления",
+  "subsChannel": "Канал",
+  "subsEmail": "E-mail",
+  "subsTelegram": "Telegram",
+  "subsTab": "Альбом",
+  "subsAllTabs": "Все альбомы",
+  "subsMode": "Частота",
+  "subsInstant": "Сразу",
+  "subsDigest": "Ежедневная сводка",
+  "subsAdd": "Сохранить",
+  "subsEmpty": "Уведомления ещё не настроены.",
+  "subsRemove": "Удалить",
+  "subsFail": "Не удалось сохранить подписку.",
+  "subsTelegramHint": "Откройте эту ссылку в Telegram, чтобы завершить привязку:",
+  "subsTelegramOff": "Уведомления в Telegram не настроены на этом сервере.",
   "select": "Выбрать",
   "selecting": "Отменить выбор",
   "downloadSelected": "Скачать выбранные ({count})",

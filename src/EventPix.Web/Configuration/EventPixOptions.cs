@@ -17,6 +17,8 @@ internal sealed class EventPixOptions
     public string? FfprobePath { get; set; } = "ffprobe";
     public int OtpMinutes { get; set; } = 10;
     public int NotifyDebounceMinutes { get; set; } = 5;
+    /// <summary>Digest subscriptions roll up activity into one message per window (rolling, UTC).</summary>
+    public int NotifyDigestHours { get; set; } = 24;
     /// <summary>Honour X-Forwarded-*. Enable only when the app is reachable exclusively through your proxy.</summary>
     public bool TrustForwardedHeaders { get; set; }
 }

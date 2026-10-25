@@ -13,6 +13,8 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
     public DbSet<Star> Stars => Set<Star>();
     public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
+    public DbSet<TelegramLinkCode> TelegramLinkCodes => Set<TelegramLinkCode>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -77,6 +79,21 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
             s.HasOne<Member>().WithMany().HasForeignKey(x => x.MemberId).OnDelete(DeleteBehavior.Cascade);
             s.HasIndex(x => x.MemberId);
             s.HasIndex(x => new { x.EventId, x.MemberId, x.Channel, x.TabId }).IsUnique();
+        });
+
+        b.Entity<OutboxMessage>(o =>
+        {
+            o.HasOne<Subscription>().WithMany().HasForeignKey(x => x.SubscriptionId).OnDelete(DeleteBehavior.Cascade);
+            o.Property(x => x.EventName).HasMaxLength(200);
+            o.HasIndex(x => new { x.SentUtc, x.NotBeforeUtc });
+        });
+
+        b.Entity<TelegramLinkCode>(c =>
+        {
+            c.HasIndex(x => x.CodeHash).IsUnique();
+            c.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+            c.HasOne<Member>().WithMany().HasForeignKey(x => x.MemberId).OnDelete(DeleteBehavior.Cascade);
+            c.HasIndex(x => x.ExpiresUtc);
         });
     }
 }

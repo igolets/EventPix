@@ -47,38 +47,31 @@ internal sealed class LogEmailSender(ILogger<LogEmailSender> log) : IEmailSender
     }
 }
 
-internal sealed record NewContentMessage(
-    string EventName, string TabName, string UploaderName, int Photos, int Videos, string Url, string UnsubscribeUrl)
-{
-    public string ToText()
-    {
-        return $"{UploaderName} added {Photos} photo(s) and {Videos} video(s) to \"{TabName}\" in {EventName}.\n\n" +
-        $"Open: {Url}\nUnsubscribe: {UnsubscribeUrl}";
-    }
-}
-
-/// <summary>Add a new delivery channel by implementing this and registering it in DI. Nothing else changes.</summary>
+/// <summary>
+/// Deliver one already-composed message to one address. The worker composes every text (Composer);
+/// a channel only knows how to transport a subject + body. New channel = one class + one DI line.
+/// </summary>
 internal interface INotificationChannel
 {
     public NotifyChannel Channel { get; }
-    public Task SendAsync(string address, NewContentMessage message, CancellationToken ct);
+    public Task SendAsync(string address, string subject, string body, CancellationToken ct);
 }
 
 internal sealed class EmailChannel(IEmailSender sender) : INotificationChannel
 {
     public NotifyChannel Channel => NotifyChannel.Email;
-    public Task SendAsync(string address, NewContentMessage m, CancellationToken ct)
+
+    public Task SendAsync(string address, string subject, string body, CancellationToken ct)
     {
-        return sender.SendAsync(address, $"New in {m.EventName}", m.ToText(), ct);
+        return sender.SendAsync(address, subject, body, ct);
     }
 }
 
-/// <summary>Send-only for now. TODO: /start deep-link flow that stores chat ids as confirmed subscriptions.</summary>
 internal sealed class TelegramChannel(IOptions<TelegramOptions> options) : INotificationChannel
 {
     public NotifyChannel Channel => NotifyChannel.Telegram;
 
-    public async Task SendAsync(string address, NewContentMessage m, CancellationToken ct)
+    public async Task SendAsync(string address, string subject, string body, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(options.Value.BotToken))
         {
@@ -86,6 +79,6 @@ internal sealed class TelegramChannel(IOptions<TelegramOptions> options) : INoti
         }
 
         var bot = new TelegramBotClient(options.Value.BotToken);
-        await bot.SendMessage(long.Parse(address), m.ToText(), cancellationToken: ct);
+        await bot.SendMessage(long.Parse(address), body, cancellationToken: ct);
     }
 }

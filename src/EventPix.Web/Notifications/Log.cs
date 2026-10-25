@@ -10,6 +10,14 @@ internal static partial class Log
     [LoggerMessage(LogLevel.Error, "Notification tick failed")]
     internal static partial void TickFailed(this ILogger logger, Exception exception);
 
-    [LoggerMessage(LogLevel.Warning, "Notify {Channel} failed for subscription {Id}")]
-    internal static partial void NotifyFailed(this ILogger logger, Exception exception, NotifyChannel channel, Guid id);
+    [LoggerMessage(LogLevel.Warning, "Notification retry {Attempts} queued for {Channel} subscription {Id}")]
+    internal static partial void RetryQueued(
+        this ILogger logger, Exception exception, NotifyChannel channel, Guid id, int attempts);
+
+    [LoggerMessage(LogLevel.Warning, "Notification dropped after {Attempts} attempts for {Channel} subscription {Id}")]
+    internal static partial void Dropped(
+        this ILogger logger, Exception exception, NotifyChannel channel, Guid id, int attempts);
+
+    [LoggerMessage(LogLevel.Error, "Telegram polling failed")]
+    internal static partial void PollingFailed(this ILogger logger, Exception exception);
 }

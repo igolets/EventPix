@@ -65,6 +65,10 @@ erDiagram
   STAR { guid MemberId PK  guid MediaId PK }
   LOGINCODE { guid Id PK  guid EventId FK  string Email  string CodeHash  datetime ExpiresUtc  int Attempts }
   SUBSCRIPTION { guid Id PK  guid EventId FK  guid MemberId FK  enum Channel  string Address  guid TabId  enum Mode  bool Confirmed }
+  SUBSCRIPTION ||--o{ OUTBOX : queues
+  OUTBOX { long Id PK  guid SubscriptionId FK  enum Channel  string Address  string EventName  string Url  string UnsubscribeUrl  string GroupsJson  datetime NotBeforeUtc  int Attempts  datetime SentUtc }
+  EVENT ||--o{ TELEGRAMLINKCODE : issues
+  TELEGRAMLINKCODE { guid Id PK  string CodeHash UK  guid EventId FK  guid MemberId FK  guid TabId  enum Mode  datetime ExpiresUtc  datetime ConsumedUtc }
 ```
 
 Notes
@@ -107,7 +111,8 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | PUT/DELETE `/media/{id}/star` | session | Star / unstar |
 | GET `/download[?tab=id][&starred=true]` | session | Streamed ZIP: file = `/media/..?download`, tab, starred, or everything |
 | POST `/download` `{ids}` | session | Streamed ZIP of the selected items (multi-select). Ids of other events are silently dropped; max 500 |
-| GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings |
+| GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings. PUT accepts `Email` only (confirmed via the sign-in address); `Telegram` answers 400 `telegram_use_link` — link via the bot instead. Deleting a subscription also drops its pending outbox rows (cascade) |
+| GET `/subscriptions/telegram-link[?tab=id&mode=x]` | session | Mint a single-use 15-minute code and return `{url}` = `https://t.me/<bot>?start=<code>`; 501 when no bot is configured |
 | POST `/api/unsubscribe/{id}/{sig}` | HMAC link | One-click unsubscribe (valid sig is always 204, even if already gone) |
 | GET `/u/{id}.{sig}` | HMAC link | Unsubscribe page: theme shell + core JS confirming via the API above |
 
@@ -126,15 +131,28 @@ Videos: ffmpeg grabs a frame for the variants; ffprobe fills `DurationSeconds` a
 **ZIP**: query items -> `ZipArchive.CreateAsync` over the response body -> copy each original with `NoCompression`.
 No temp files; memory is constant. Entries are `Tab/File.ext`, de-duplicated.
 
-**Notifications**: `NotificationWorker` (every minute) takes `Ready` items older than the debounce window and not yet notified,
-groups by (tab, uploader), sends one message per matching subscription (never to the uploader), marks `NotifiedUtc`.
-A new channel = one class implementing `INotificationChannel` + one DI line.
+**Notifications**: `NotificationWorker` (every minute) runs two phases.
+*Dispatch*: `Ready` items older than the debounce window and not yet dispatched are grouped by (tab, uploader);
+one outbox row is enqueued per matching subscription (never to the uploader) and the media is marked dispatched.
+`Instant` subscriptions get a row due immediately. `Digest` subscriptions keep a single open row whose
+`GroupsJson` accumulates per (tab, uploader) counts; its `NotBeforeUtc` rolls forward by
+`EventPix:NotifyDigestHours` (default 24) with every new batch, so delivery is one roll-up message per
+window. *Deliver*: due rows are sent through their `INotificationChannel`; failures back off exponentially
+(2, 4, 8 … capped at 60 minutes, max 8 attempts) and are then dropped with a warning. Delivery is
+at-least-once. Channels only transport a subject + body; `Composer` renders all texts, so a new channel
+is one class + one DI line.
+
+**Telegram linking**: the web UI asks `/subscriptions/telegram-link` for a 128-bit single-use code
+(stored only as SHA-256, 15-minute TTL). The member opens `t.me/<bot>?start=<code>`; `TelegramUpdateWorker`
+long-polls the bot (idle when `Telegram:BotToken` is unset), consumes the code and creates a confirmed
+subscription bound to the chat id — the bot proves the chat, like the sign-in code proves the e-mail.
+Codes are purged opportunistically; messages never log their contents.
 
 ## 8. Theming contract
 Core JS has no markup/styling. A theme folder provides:
 * `index.html`: shell that loads `/theme/theme.css` and `/app/app.js`, has `<div id="app">`.
 * `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `unsubscribe`, `not-found`,
-  plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
+  `subscriptions`, `sub-row`, plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
   Translations are additional `<template data-tpl="strings" data-lang="ru">` variants; the browser language
   picks one (primary-subtag match), and a `?lang=xx` query parameter overrides it.
 * `theme.css` and any assets (`/theme/<file>`).
@@ -144,9 +162,14 @@ Theme markup can declare translatable text: `data-i18n="key"` sets `textContent`
 and `data-i18n-aria="key"` sets the `aria-label`; keep them on leaf elements. The core fills both on every
 rendered view, so a theme is localisable purely through its `strings` templates.
 Gallery hooks beyond the basics: `select` (toggle multi-select), `download-selected` (POSTs `/download`),
-`progress` (upload bar), `sentinel` (infinite-scroll marker; without it only the first page loads).
+`progress` (upload bar), `sentinel` (infinite-scroll marker; without it only the first page loads),
+`subscribe` (opens the notifications dialog).
 The `unsubscribe` template needs `data-ref="title"` and `data-ref="message"`; the core confirms the unsubscribe
 by POSTing to `/api/unsubscribe/{id}/{sig}` and writes the outcome via `textContent`.
+The `subscriptions` dialog needs `data-ref="title|close|list|empty|form|channel|tab|mode|message"`; each
+`sub-row` needs `data-ref="label|remove"`. The core lists current subscriptions, saves e-mail ones via
+`PUT /subscriptions`, mints the deep link via `GET /subscriptions/telegram-link` for Telegram, and deletes
+via `DELETE /subscriptions/{id}`.
 
 State is exposed to CSS as attributes and properties — the core never sets classes for looks:
 * every rendered view carries `data-tpl="<name>"`;
@@ -157,9 +180,11 @@ State is exposed to CSS as attributes and properties — the core never sets cla
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
 `codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
-(`{name}`), `subscribeOk`, `subscribeFail`, `select`, `selecting`, `downloadSelected` (`{count}`),
-`downloadFailed`, `unsubTitle`, `unsubOk`, `unsubInvalid`, `unsubBadLink`, and the `aria*` labels
-(`ariaOpen`, `ariaStar`, `ariaClose`, `ariaPrev`, `ariaNext`, `ariaFullscreen`, `ariaDownload`).
+(`{name}`), `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsTab`, `subsAllTabs`, `subsMode`,
+`subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
+`subsTelegramOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadFailed`, `unsubTitle`,
+`unsubOk`, `unsubInvalid`, `unsubBadLink`, and the `aria*` labels (`ariaOpen`, `ariaStar`, `ariaClose`,
+`ariaPrev`, `ariaNext`, `ariaFullscreen`, `ariaDownload`).
 
 The core only writes text via `textContent`. CSP forbids inline script/style and remote hosts, so ship fonts and images inside the theme folder.
 Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.
@@ -171,6 +196,7 @@ Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.
 * [x] Cookie: HttpOnly, SameSite=Lax, Secure when proxy forwards https; per-event claim check
 * [x] CSRF header, strict CSP, `no-referrer`, `noindex`, `nosniff`, `frame-ancestors 'none'`
 * [x] Uploads: size limit, content sniffing, whitelist types, no SVG/HTML, server-generated paths, pixel-count guard
+* [x] Telegram link codes: 128-bit single-use, 15-minute TTL, stored only as SHA-256; bot-confirmed chat ids
 * [x] Media served only through authorised endpoints, never from a static path
 * [x] ffmpeg via `ArgumentList` (no shell), timeout
 * [x] Log level for `Hosting.Diagnostics` lowered so tokens in URLs are not logged at Information
@@ -202,9 +228,11 @@ set client body-size and timeouts in nginx/IIS (`client_max_body_size`, `maxAllo
 * **Integration** (xUnit + `WebApplicationFactory` + TestServer): endpoints, auth flows, invite gating, tab/invite management, unsubscribe API, upload -> media-worker pipeline, all against a temp SQLite DB and storage dir.
 * **E2E** (`Microsoft.Playwright`, MIT, test-only): the real app as a Kestrel process on a random loopback port (temp paths via `EventPix__*` env vars), driven by Chromium through the theme's `data-ref` hooks — login, upload, lightbox, star, ZIP download, unsubscribe page. Selectors never use styling classes, so the suite doubles as a theming-contract check. Chromium is downloaded on first use (cached per machine); no Node tooling enters the repo or the shipped app.
 
+Local quality gate: `pwsh scripts/sonar-local.ps1` runs the same SonarCloud analysis as CI (needs `SONAR_TOKEN`; the gate result shows on sonarcloud.io a few minutes after the run). The quick no-upload approximation is `dotnet build` + `dotnet format EventPix.slnx --verify-no-changes` — it covers the C# analyzers but not the JavaScript rules.
+
 ## 12. Open questions
 
 1. HEIC/HEIF from iPhones: convert server-side (needs libheif; check licence) or ask guests to upload JPEG?
 2. Video: transcode to a web-friendly H.264 preview? (CPU heavy; make it optional.)
-3. Telegram linking UX (deep link `t.me/bot?start=<code>` vs. chat id entry).
+3. ~~Telegram linking UX~~ — decided: deep link `t.me/bot?start=<code>` minted by the web UI (M3).
 4. Owner admin web UI (tabs, members, moderation) vs. staying CLI-only.

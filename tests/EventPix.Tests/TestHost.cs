@@ -22,7 +22,12 @@ internal sealed partial class TestApp : IDisposable
     [GeneratedRegex(@"to (?<to>[^:]+):.*?Your code: (?<code>\d{6})", RegexOptions.Singleline, 250)]
     private static partial Regex CodeLine();
 
-    public TestAppFactory Factory { get; } = new();
+    public TestAppFactory Factory { get; }
+
+    public TestApp(Action<IServiceCollection>? configureServices = null)
+    {
+        Factory = new TestAppFactory(configureServices);
+    }
 
     public HttpClient CreateClient()
     {
@@ -93,6 +98,13 @@ internal sealed partial class TestApp : IDisposable
 
 internal sealed class TestAppFactory : WebApplicationFactory<Program>
 {
+    private readonly Action<IServiceCollection>? _configureServices;
+
+    public TestAppFactory(Action<IServiceCollection>? configureServices = null)
+    {
+        _configureServices = configureServices;
+    }
+
     public CapturingLoggerProvider Logs { get; } = new();
 
     private string Root { get; } = Path.Combine(Path.GetTempPath(), "eventpix-test-" + Guid.NewGuid().ToString("N"));
@@ -122,7 +134,11 @@ internal sealed class TestAppFactory : WebApplicationFactory<Program>
         builder.UseSetting($"{EventPixOptions.Section}:StoragePath", Path.Combine(Root, "media"));
         builder.UseSetting($"{EventPixOptions.Section}:ThemesPath", themes);
         builder.UseSetting($"{SmtpOptions.Section}:Host", "");   // LogEmailSender prints codes to the log
-        builder.ConfigureServices(services => services.AddSingleton<ILoggerProvider>(Logs));
+        builder.ConfigureServices(services =>
+        {
+            _configureServices?.Invoke(services);
+            services.AddSingleton<ILoggerProvider>(Logs);
+        });
     }
 }
 

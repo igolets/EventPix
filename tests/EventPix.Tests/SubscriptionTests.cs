@@ -19,25 +19,32 @@ public sealed class SubscriptionTests : IDisposable
     public void Dispose() => _app.Dispose();
 
     [Fact]
-    public async Task Subscriptions_Crud_And_Unlinked_Channel()
+    public async Task Subscriptions_Crud_Email_And_Telegram_Needs_The_Link_Flow()
     {
         var owner = $"owner-{Guid.NewGuid():N}@example.com";
         var (token, _) = await _app.CreateEventAsync(owner);
         var client = _app.CreateClient();
         await _app.SignInAsync(client, token, owner);
 
-        // Telegram has no deep-link flow yet: the API refuses it explicitly.
-        Assert.Equal(HttpStatusCode.NotImplemented, (await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
-            new { Channel = "Telegram", TabId = (Guid?)null, Mode = "Instant" })).StatusCode);
-
         var put = await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
             new { Channel = "Email", TabId = (Guid?)null, Mode = "Instant" });
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
         var id = (await put.Content.ReadFromJsonAsync<IdDto>())!.Id;
 
-        // Second PUT updates the same subscription instead of creating a duplicate.
+        // Second PUT updates the same subscription instead of duplicating.
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
             new { Channel = "Email", TabId = (Guid?)null, Mode = "Digest" })).StatusCode);
+
+        // Telegram chat ids can only be proven by the bot: the API refuses and points at the link flow.
+        var telegram = await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
+            new { Channel = "Telegram", TabId = (Guid?)null, Mode = "Instant" });
+        Assert.Equal(HttpStatusCode.BadRequest, telegram.StatusCode);
+        var err = await telegram.Content.ReadFromJsonAsync<ErrorDto>();
+        Assert.Equal("telegram_use_link", err!.Error);
+
+        // No bot token configured: the deep-link endpoint says so without leaking anything.
+        Assert.Equal(HttpStatusCode.NotImplemented,
+            (await client.GetAsync(U($"/api/e/{token}/subscriptions/telegram-link"))).StatusCode);
 
         var list = await client.GetFromJsonAsync<SubDto[]>(U($"/api/e/{token}/subscriptions"), _json);
         var sub = Assert.Single(list!);
@@ -49,6 +56,29 @@ public sealed class SubscriptionTests : IDisposable
         Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync(U($"/api/e/{token}/subscriptions/{id}"))).StatusCode);
         var after = await client.GetFromJsonAsync<SubDto[]>(U($"/api/e/{token}/subscriptions"), _json);
         Assert.Empty(after!);
+    }
+
+    [Fact]
+    public async Task Per_Tab_Subscription_Is_Separate_From_The_All_Tabs_One()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var (token, _) = await _app.CreateEventAsync(owner);
+        var client = _app.CreateClient();
+        await _app.SignInAsync(client, token, owner);
+
+        var tabResponse = await client.PostAsJsonAsync(U($"/api/e/{token}/tabs"), new { Name = "Ceremony" });
+        Assert.Equal(HttpStatusCode.Created, tabResponse.StatusCode);
+        var tabId = (await tabResponse.Content.ReadFromJsonAsync<IdDto>())!.Id;
+
+        await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
+            new { Channel = "Email", TabId = (Guid?)null, Mode = "Instant" });
+        await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
+            new { Channel = "Email", TabId = tabId, Mode = "Digest" });
+
+        var list = await client.GetFromJsonAsync<SubDto[]>(U($"/api/e/{token}/subscriptions"), _json);
+        Assert.Equal(2, list!.Length);
+        Assert.Contains(list, s => s.TabId == tabId && s.Mode == "Digest");
+        Assert.Contains(list, s => s.TabId == null && s.Mode == "Instant");
     }
 
     [Fact]
@@ -73,4 +103,7 @@ public sealed class SubscriptionTests : IDisposable
 
     [SuppressMessage("Performance", "CA1812", Justification = "Instantiated by the JSON serializer.")]
     internal sealed record SubDto(Guid Id, string Channel, Guid? TabId, string Mode, bool Confirmed);
+
+    [SuppressMessage("Performance", "CA1812", Justification = "Instantiated by the JSON serializer.")]
+    internal sealed record ErrorDto(string Error);
 }
