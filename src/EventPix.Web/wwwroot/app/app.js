@@ -181,7 +181,7 @@ async function showGallery(info) {
   ref(view, 'subscribe').addEventListener('click', () => {
     if (state.guest) {   // notifications need a proven e-mail: run the OTP round-trip first
       state.afterLogin = 'subs';
-      showLogin(state.info);
+      void showLogin(state.info);
       return;
     }
     openSubscriptions();
@@ -191,7 +191,7 @@ async function showGallery(info) {
     if (state.guest) {   // guests get the OTP prompt instead of the file dialog
       e.preventDefault();
       state.afterLogin = 'upload';
-      showLogin(state.info);
+      void showLogin(state.info);
     }
   });
   uploadInput.addEventListener('change', (e) => upload(view, [...e.target.files], e.target));
