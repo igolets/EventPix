@@ -42,12 +42,8 @@ internal static class DownloadEndpoints
 
             if (starred == true)
             {
-                if (me is null)
-                {
-                    return Results.Unauthorized();   // stars are per member: guests have none
-                }
-
-                q = q.Where(m => db.Stars.Any(s => s.MemberId == me.Id && s.MediaId == m.Id));
+                // Stars are per member; an anonymous caller has none, so the filter simply matches nothing.
+                q = q.Where(m => me != null && db.Stars.Any(s => s.MemberId == me.Id && s.MediaId == m.Id));
             }
 
             var items = await q.OrderBy(m => m.TabId).ThenBy(m => m.UploadedUtc).ToListAsync(ct);

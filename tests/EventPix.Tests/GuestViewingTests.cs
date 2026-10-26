@@ -82,7 +82,8 @@ public sealed class GuestViewingTests : IDisposable
         var guest = _app.CreateClient();
 
         Assert.Equal(HttpStatusCode.OK, (await guest.GetAsync(U($"/api/e/{token}/download"))).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await guest.GetAsync(U($"/api/e/{token}/download?starred=true"))).StatusCode);
+        // Guests have no stars, so the starred filter matches nothing and the ZIP falls through to 404.
+        Assert.Equal(HttpStatusCode.NotFound, (await guest.GetAsync(U($"/api/e/{token}/download?starred=true"))).StatusCode);
 
         using (var scope = _app.Factory.Services.CreateAsyncScope())
         {
