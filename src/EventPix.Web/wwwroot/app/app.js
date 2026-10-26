@@ -184,7 +184,7 @@ async function showGallery(info) {
       void showLogin(state.info);
       return;
     }
-    openSubscriptions();
+    void openSubscriptions();
   });
   const uploadInput = ref(view, 'upload-input');
   uploadInput.closest('label')?.addEventListener('click', (e) => {
@@ -194,7 +194,7 @@ async function showGallery(info) {
       void showLogin(state.info);
     }
   });
-  uploadInput.addEventListener('change', (e) => upload(view, [...e.target.files], e.target));
+  uploadInput.addEventListener('change', (e) => void upload(view, [...e.target.files], e.target));
   ref(view, 'tab-rename').addEventListener('click', () => openTabEditor(state.tab));
   ref(view, 'manage-tabs').addEventListener('click', () => openTabManager());
   ref(view, 'invites').addEventListener('click', () => openInvites());
@@ -215,7 +215,7 @@ async function showGallery(info) {
     const action = state.afterLogin;
     state.afterLogin = null;
     if (action === 'upload') uploadInput.click();
-    if (action === 'subs') openSubscriptions();
+    if (action === 'subs') void openSubscriptions();
   }
 }
 
