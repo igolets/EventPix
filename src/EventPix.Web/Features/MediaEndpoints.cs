@@ -22,17 +22,17 @@ internal static class MediaEndpoints
     {
         g.MapGet("/tabs/{tabId:guid}/media", ListAsync);
         g.MapGet("/media/{id:guid}/{variant}", FileAsync);
-        g.MapPost("/uploads", UploadAsync);
-        g.MapDelete("/media/{id:guid}", DeleteAsync);
-        g.MapPut("/media/{id:guid}/star", (Guid id, HttpContext h, EventPixDb db, TimeProvider c, CancellationToken ct) => SetStar(id, true, h, db, c, ct));
-        g.MapDelete("/media/{id:guid}/star", (Guid id, HttpContext h, EventPixDb db, TimeProvider c, CancellationToken ct) => SetStar(id, false, h, db, c, ct));
+        g.MapPost("/uploads", UploadAsync).RequireMember();
+        g.MapDelete("/media/{id:guid}", DeleteAsync).RequireMember();
+        g.MapPut("/media/{id:guid}/star", (Guid id, HttpContext h, EventPixDb db, TimeProvider c, CancellationToken ct) => SetStar(id, true, h, db, c, ct)).RequireMember();
+        g.MapDelete("/media/{id:guid}/star", (Guid id, HttpContext h, EventPixDb db, TimeProvider c, CancellationToken ct) => SetStar(id, false, h, db, c, ct)).RequireMember();
     }
 
     private static async Task<IResult> ListAsync(Guid tabId, int? skip, int? take, HttpContext h, EventPixDb db, CancellationToken ct)
     {
         var (ev, me) = h.GetScope();
-        var meId = me!.Id;
-        var isOwner = me.Role == MemberRole.Owner;
+        var meId = me?.Id ?? Guid.Empty;
+        var isOwner = me is { Role: MemberRole.Owner };
         if (!await db.Tabs.AnyAsync(t => t.Id == tabId && t.EventId == ev.Id, ct))
         {
             return Results.NotFound();
@@ -70,7 +70,7 @@ internal static class MediaEndpoints
             return Results.NotFound();
         }
 
-        if (variant == "original" && download == true && !ev.DownloadsOpen && h.GetScope().Member!.Role != MemberRole.Owner)
+        if (variant == "original" && download == true && !ev.DownloadsOpen && h.GetScope().Member is not { Role: MemberRole.Owner })
         {
             return Results.StatusCode(403);
         }

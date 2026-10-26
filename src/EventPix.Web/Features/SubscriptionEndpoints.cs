@@ -21,7 +21,7 @@ internal static class SubscriptionEndpoints
             return Results.Ok(await db.Subscriptions.AsNoTracking()
                 .Where(s => s.EventId == ev.Id && s.MemberId == me!.Id)
                 .Select(s => new { s.Id, s.Channel, s.TabId, s.Mode, s.Confirmed }).ToListAsync(ct));
-        });
+        }).RequireMember();
 
         g.MapPut("/subscriptions", async (SubscribeDto dto, HttpContext h, EventPixDb db, TimeProvider clock, CancellationToken ct) =>
         {
@@ -56,7 +56,7 @@ internal static class SubscriptionEndpoints
             sub.Mode = dto.Mode;
             await db.SaveChangesAsync(ct);
             return Results.Ok(new { sub.Id });
-        });
+        }).RequireMember();
 
         // Issues a single-use, 15-minute code the user sends to the bot as a /start deep link.
         g.MapGet("/subscriptions/telegram-link", async (
@@ -103,14 +103,14 @@ internal static class SubscriptionEndpoints
 
             var url = $"https://t.me/{botName}?start={code}";
             return Results.Ok(new { url, expiresUtc = expires });
-        });
+        }).RequireMember();
 
         g.MapDelete("/subscriptions/{id:guid}", async (Guid id, HttpContext h, EventPixDb db, CancellationToken ct) =>
         {
             var (ev, me) = h.GetScope();
             var n = await db.Subscriptions.Where(s => s.Id == id && s.EventId == ev.Id && s.MemberId == me!.Id).ExecuteDeleteAsync(ct);
             return n == 0 ? Results.NotFound() : Results.NoContent();
-        });
+        }).RequireMember();
     }
 
     /// <summary>One-click unsubscribe. Link carries an HMAC so ids can't be forged; pending outbox rows for

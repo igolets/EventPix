@@ -5,7 +5,7 @@
 <template data-tpl="login">
   <main class="gate">
     <section class="sheet">
-      <p class="kicker" data-i18n="eyebrow">You are invited</p>
+      <p class="kicker" data-i18n="eyebrow">Shared album</p>
       <h1 class="display" data-ref="event-name"></h1>
       <p class="whisper" data-ref="event-description"></p>
       <form data-ref="email-form" class="column">
@@ -19,6 +19,7 @@
         <button class="act" type="submit" data-i18n="viewAlbum">View the album</button>
       </form>
       <p class="flash" data-ref="message" role="alert"></p>
+      <button class="act ghost" data-ref="cancel" type="button" hidden data-i18n="back">Back</button>
     </section>
   </main>
 </template>
@@ -272,7 +273,7 @@
   "rateLimited": "Слишком много попыток. Подождите несколько минут.",
   "emailInvalid": "Проверьте адрес электронной почты.",
   "codeInvalid": "Код недействителен или истёк.",
-  "eyebrow": "Вас пригласили",
+  "eyebrow": "Общий альбом",
   "emailLabel": "Ваш e-mail",
   "sendCode": "Отправить код",
   "codeLabel": "Введите 6-значный код из письма",
@@ -280,6 +281,7 @@
   "upload": "Добавить фото и видео",
   "notifyMe": "Оповещать меня",
   "signout": "Выйти",
+  "back": "Назад",
   "downloadTab": "Скачать эту вкладку",
   "downloadStarred": "Скачать избранное ★",
   "downloadAll": "Скачать всё",

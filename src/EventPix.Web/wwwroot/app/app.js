@@ -12,6 +12,9 @@ const state = {
   complete: false, loading: false,
   selecting: false, selected: new Set(),
   isOwner: false,
+  guest: false,          // browsing an open album without a session (view-only)
+  afterLogin: null,      // guest clicked upload/subscriptions: resume it right after the OTP round-trip
+  info: null,
 };
 let templates;
 let strings = {};
@@ -21,7 +24,7 @@ const DEFAULT_STRINGS = {
   rateLimited: 'Too many attempts. Please wait a few minutes.',
   emailInvalid: 'Please check the e-mail address.',
   codeInvalid: 'That code is not valid or has expired.',
-  eyebrow: 'You are invited',
+  eyebrow: 'Shared album',
   emailLabel: 'Your e-mail',
   sendCode: 'Send me a code',
   codeLabel: 'Enter the 6-digit code we e-mailed you',
@@ -29,6 +32,7 @@ const DEFAULT_STRINGS = {
   upload: 'Add photos & videos',
   notifyMe: 'Notify me',
   signout: 'Sign out',
+  back: 'Back',
   downloadTab: 'Download this tab',
   downloadStarred: 'Download starred ★',
   downloadAll: 'Download everything',
@@ -136,6 +140,12 @@ function showLogin(info) {
   codeForm.hidden = true;
   let email = '';
 
+  const cancel = ref(view, 'cancel');
+  if (cancel && state.guest) {   // the login was opened over a browsable gallery: allow going back
+    cancel.hidden = false;
+    cancel.addEventListener('click', () => void showGallery(state.info));
+  }
+
   emailForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     email = ref(view, 'email').value.trim();
@@ -156,13 +166,35 @@ function showLogin(info) {
 // ---- gallery -------------------------------------------------------------------------------------------
 async function showGallery(info) {
   const view = tpl('gallery');
+  state.info = info;
   text(view, 'event-name', info.name);
   ref(view, 'download-all').href = `${base}/download`;
   ref(view, 'download-starred').href = `${base}/download?starred=true`;
-  ref(view, 'signout').addEventListener('click', async () => { await api('/auth/logout', { method: 'POST' }); location.reload(); });
-  ref(view, 'upload-input').addEventListener('change', (e) => upload(view, [...e.target.files], e.target));
-  ref(view, 'subscribe').addEventListener('click', () => openSubscriptions());
-  ref(view, 'tab-add').addEventListener('click', () => openTabEditor());
+  if (state.guest) {
+    ref(view, 'signout').hidden = true;   // the upload button asks for the OTP instead
+    ref(view, 'tab-add').hidden = true;        // personal tabs need a member
+    ref(view, 'download-starred').hidden = true;
+  } else {
+    ref(view, 'signout').addEventListener('click', async () => { await api('/auth/logout', { method: 'POST' }); location.reload(); });
+    ref(view, 'tab-add').addEventListener('click', () => openTabEditor());
+  }
+  ref(view, 'subscribe').addEventListener('click', () => {
+    if (state.guest) {   // notifications need a proven e-mail: run the OTP round-trip first
+      state.afterLogin = 'subs';
+      void showLogin(state.info);
+      return;
+    }
+    void openSubscriptions();
+  });
+  const uploadInput = ref(view, 'upload-input');
+  uploadInput.closest('label')?.addEventListener('click', (e) => {
+    if (state.guest) {   // guests get the OTP prompt instead of the file dialog
+      e.preventDefault();
+      state.afterLogin = 'upload';
+      void showLogin(state.info);
+    }
+  });
+  uploadInput.addEventListener('change', (e) => void upload(view, [...e.target.files], e.target));
   ref(view, 'tab-rename').addEventListener('click', () => openTabEditor(state.tab));
   ref(view, 'manage-tabs').addEventListener('click', () => openTabManager());
   ref(view, 'invites').addEventListener('click', () => openInvites());
@@ -179,6 +211,12 @@ async function showGallery(info) {
   state.view = view;
   watchSentinel(view);
   await loadTabs();
+  if (!state.guest && state.afterLogin) {   // guest clicked upload/subscriptions: continue after the OTP
+    const action = state.afterLogin;
+    state.afterLogin = null;
+    if (action === 'upload') uploadInput.click();
+    if (action === 'subs') void openSubscriptions();
+  }
 }
 
 function watchSentinel(view) {
@@ -419,6 +457,7 @@ function makeTile(m, index) {
   const img = ref(tile, 'image');
   img.src = m.status === 'Ready' ? `${base}/media/${m.id}/thumb` : '';
   img.alt = m.name;
+  ref(tile, 'star').hidden = state.guest;
   ref(tile, 'open').addEventListener('click', () => (state.selecting ? toggleSelect(m, tile) : openLightbox(index)));
   ref(tile, 'star').addEventListener('click', () => toggleStar(m, tile));
   const del = ref(tile, 'delete');
@@ -585,6 +624,7 @@ function openLightbox(index) {
     ref(box, 'download').href = `${base}/media/${m.id}/original?download=true`;
     box.dataset.starred = String(m.starred);
     box.dataset.armed = 'false';
+    ref(box, 'star').hidden = state.guest;
     del.hidden = !m.canDelete;
     del.textContent = '✕';
   };
@@ -795,8 +835,13 @@ async function start() {
   if (!pub.ok) { mount(tpl('not-found')); return; }          // same page for "wrong link" as for anything else
   const info = await pub.json();
   const me = await api('/me');
-  if (!me.ok) return showLogin(info);
-  state.isOwner = (await me.json()).isOwner === true;
+  state.isOwner = false;
+  state.guest = !me.ok && !info.inviteOnly;   // open albums: browse without signing in
+  if (!me.ok) {
+    if (info.inviteOnly) return showLogin(info);   // invite-only keeps the login wall for viewing
+  } else {
+    state.isOwner = (await me.json()).isOwner === true;
+  }
   return showGallery(info);
 }
 

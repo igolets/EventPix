@@ -31,7 +31,7 @@ internal static class InviteEndpoints
                 })
                 .ToListAsync(ct);
             return Results.Ok(invites);
-        });
+        }).RequireMember();
 
         g.MapPost("/invites", async (AddInviteDto dto, HttpContext h, EventPixDb db, TimeProvider clock, CancellationToken ct) =>
         {
@@ -61,7 +61,7 @@ internal static class InviteEndpoints
             db.Invites.Add(invite);
             await db.SaveChangesAsync(ct);
             return Results.Created($"invites/{invite.Id}", new { invite.Id });
-        });
+        }).RequireMember();
 
         g.MapDelete("/invites/{id:guid}", async (Guid id, HttpContext h, EventPixDb db, CancellationToken ct) =>
         {
@@ -73,6 +73,6 @@ internal static class InviteEndpoints
 
             var n = await db.Invites.Where(i => i.Id == id && i.EventId == ev.Id).ExecuteDeleteAsync(ct);
             return n == 0 ? Results.NotFound() : Results.NoContent();
-        });
+        }).RequireMember();
     }
 }

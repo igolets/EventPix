@@ -31,7 +31,7 @@ public sealed partial class E2ETests(PlaywrightFixture fixture)
         await app.StartAsync();
         var ownerEmail = $"e2e-{Guid.NewGuid():N}@example.com";
 
-        var (exit, stdout, _) = await app.RunCommandAsync("create-event", "E2E Event", ownerEmail);
+        var (exit, stdout, _) = await app.RunCommandAsync("create-event", "E2E Event", ownerEmail, "--invite-only");   // login wall: guest browsing is covered by GuestViewingTests
         Assert.Equal(0, exit);
         var token = EventTokenRegex().Match(stdout).Groups[1].Value;
         Assert.NotEmpty(token);
@@ -161,7 +161,7 @@ public sealed partial class E2ETests(PlaywrightFixture fixture)
         await using var app = new EventPixAppHost();
         await app.StartAsync();
         var ownerEmail = $"e2e-{Guid.NewGuid():N}@example.com";
-        var (_, stdout, _) = await app.RunCommandAsync("create-event", "E2E Event", ownerEmail);
+        var (_, stdout, _) = await app.RunCommandAsync("create-event", "E2E Event", ownerEmail, "--invite-only");   // keep the login page up: guest viewing is covered by the API tests
         var token = EventTokenRegex().Match(stdout).Groups[1].Value;
 
         var context = await fixture.Browser.NewContextAsync();
@@ -171,7 +171,7 @@ public sealed partial class E2ETests(PlaywrightFixture fixture)
             await page.GotoAsync($"{app.BaseAddress}e/{token}?lang=ru");
 
             // Static theme labels are localised through data-i18n, not just core-written strings.
-            await Assertions.Expect(page.Locator("[data-i18n='eyebrow']")).ToHaveTextAsync("Вас пригласили");
+            await Assertions.Expect(page.Locator("[data-i18n='eyebrow']")).ToHaveTextAsync("Общий альбом");
             await Assertions.Expect(page.Locator("[data-i18n='sendCode']")).ToHaveTextAsync("Отправить код");
 
             // Well-formed for the browser, too long for the server (max 254): triggers the error path.
