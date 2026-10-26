@@ -439,7 +439,7 @@ async function loadMore() {
     const items = await (await api(`/tabs/${state.tab.id}/media?skip=${state.items.length}&take=${PAGE_SIZE}`)).json();
     const grid = ref(state.view, 'grid');
     ref(state.view, 'empty').hidden = state.items.length + items.length > 0;
-    for (const m of items) grid.append(makeTile(m, state.items.length));
+    items.forEach((m, i) => grid.append(makeTile(m, state.items.length + i)));   // index before push: keep tile ⇔ item in sync
     state.items.push(...items);
     state.complete = items.length < PAGE_SIZE;
     grid.dataset.complete = String(state.complete);
@@ -666,6 +666,7 @@ function openLightbox(index) {
     let el;
     if (m.kind === 'Video') { el = document.createElement('video'); el.controls = true; el.autoplay = true; el.playsInline = true; el.src = `${base}/media/${m.id}/original`; }
     else { el = document.createElement('img'); el.src = `${base}/media/${m.id}/preview`; el.alt = m.name; }
+    el.draggable = false;   // keep pointer gestures (pan/pinch); a native image drag would cancel them
     stage.append(el);
     zoom.reset();
     text(box, 'caption', `${m.uploader} · ${m.name}`);
