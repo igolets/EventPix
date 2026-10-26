@@ -42,6 +42,9 @@ const DEFAULT_STRINGS = {
   uploading: 'Uploading… {percent}%',
   uploaded: 'Uploaded {count} file(s). Preparing previews…',
   uploadFailed: 'Upload failed: {name}',
+  dropHere: 'Drop to upload',
+  dropSignIn: 'Sign in to add photos',
+  dropNotAllowed: 'You cannot upload to this album.',
   subsTitle: 'Notifications',
   subsChannel: 'Channel',
   subsEmail: 'E-mail',
@@ -195,6 +198,7 @@ async function showGallery(info) {
     }
   });
   uploadInput.addEventListener('change', (e) => void upload(view, [...e.target.files], e.target));
+  wireDropZone(view, uploadInput);
   ref(view, 'tab-rename').addEventListener('click', () => openTabEditor(state.tab));
   ref(view, 'manage-tabs').addEventListener('click', () => openTabManager());
   ref(view, 'invites').addEventListener('click', () => openInvites());
@@ -489,6 +493,45 @@ function renderGrid() {
 async function toggleStar(m, tile) {
   const res = await api(`/media/${m.id}/star`, { method: m.starred ? 'DELETE' : 'PUT' });
   if (res.ok) { m.starred = !m.starred; tile.dataset.starred = String(m.starred); }
+}
+
+// ---- drag & drop: the whole gallery view is the drop target; the overlay is theme markup shown via
+// [data-dragover] / [data-dropallowed] state attributes. Only signed-in members may drop, and only
+// while the current tab accepts their uploads — the server enforces the same rules on POST /uploads.
+function wireDropZone(view, uploadInput) {
+  let depth = 0;
+  // No tab selected (fresh event) falls back to the caller's own Author tab, like POST /uploads does.
+  const allowed = () => !state.guest && (!state.tab || state.tab.canUpload === true) && view.dataset.uploading !== 'true';
+  const draggingFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
+  const stop = () => { depth = 0; delete view.dataset.dragover; delete view.dataset.dropallowed; };
+  const hint = () => (allowed() ? t('dropHere') : state.guest ? t('dropSignIn') : t('dropNotAllowed'));
+  view.addEventListener('dragenter', (e) => {
+    if (!draggingFiles(e)) return;
+    e.preventDefault();
+    depth += 1;
+    view.dataset.dragover = 'true';
+    view.dataset.dropallowed = String(allowed());
+    text(view, 'dropzone-text', hint());
+  });
+  view.addEventListener('dragover', (e) => { if (view.dataset.dragover === 'true') e.preventDefault(); });
+  view.addEventListener('dragleave', () => { if (view.dataset.dragover === 'true' && --depth <= 0) stop(); });
+  view.addEventListener('drop', (e) => {
+    if (view.dataset.dragover !== 'true') return;
+    e.preventDefault();
+    stop();
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (files.length === 0) return;
+    if (state.guest) {   // guests get the OTP round-trip; the file dialog resumes right after sign-in
+      state.afterLogin = 'upload';
+      void showLogin(state.info);
+      return;
+    }
+    if (state.tab && state.tab.canUpload !== true) {   // this tab does not accept the caller: nothing is uploaded
+      ref(view, 'status').textContent = t('dropNotAllowed');
+      return;
+    }
+    void upload(view, files, uploadInput);
+  });
 }
 
 // ---- uploads: parallel transfers with aggregate progress, then auto-refresh while processing -----------

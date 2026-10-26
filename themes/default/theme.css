@@ -54,6 +54,13 @@ label { font-size: .9rem; color: var(--muted); }
 [data-uploading=true] .progress { display: inline-block; }
 .progress::before { content: ""; position: absolute; inset: 0; width: var(--progress, 0%); border-radius: inherit; background: var(--accent); transition: width .2s ease; }
 
+/* drag & drop overlay (core drives [data-dragover] / [data-dropallowed] on the shell) */
+.dropzone { display: none; position: fixed; inset: 0; z-index: 40; pointer-events: none; align-items: center; justify-content: center; background: color-mix(in srgb, var(--bg) 75%, transparent); }
+[data-dragover=true] .dropzone { display: flex; }
+.dropzone p { margin: 0; padding: 1.25rem 2.5rem; border: 2px dashed var(--accent); border-radius: var(--radius);
+  background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow); }
+[data-dropallowed=false] .dropzone p { border-color: var(--line); color: var(--muted); }
+
 /* selection mode ([data-selecting] on the shell, [data-selected] on tiles) */
 [data-selecting=true] .tile-open { cursor: pointer; }
 [data-selecting=true] .tile::after { content: "✓"; position: absolute; top: 6px; left: 6px; width: 28px; height: 28px;

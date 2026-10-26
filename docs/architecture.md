@@ -172,7 +172,10 @@ Theme markup can declare translatable text: `data-i18n="key"` sets `textContent`
 and `data-i18n-aria="key"` sets the `aria-label`; keep them on leaf elements. The core fills both on every
 rendered view, so a theme is localisable purely through its `strings` templates.
 Gallery hooks beyond the basics: `select` (toggle multi-select), `download-selected` (POSTs `/download`),
-`progress` (upload bar), `sentinel` (infinite-scroll marker; without it only the first page loads),
+`progress` (upload bar), `dropzone-text` (text of the theme's drag-and-drop overlay, filled during a file
+drag; the overlay itself is theme markup shown via the `[data-dragover]` state below — drops are accepted
+only from signed-in members and only while the current tab accepts their uploads, mirroring `POST /uploads`),
+`sentinel` (infinite-scroll marker; without it only the first page loads),
 `subscribe` (opens the notifications dialog), `tab-add` (opens the new-tab dialog), `tab-rename`
 (opens the rename dialog; hidden unless the selected tab is renameable by the caller), and the owner-only
 `manage-tabs` (tab administration dialog) and `invites` (invite management dialog) — both hidden unless
@@ -197,7 +200,9 @@ via `DELETE /subscriptions/{id}`.
 
 State is exposed to CSS as attributes and properties — the core never sets classes for looks:
 * every rendered view carries `data-tpl="<name>"`;
-* gallery shell: `data-uploading=true|false`, `data-selecting=true|false`, progress element gets `--progress: 0-100%`;
+* gallery shell: `data-uploading=true|false`, `data-selecting=true|false`, progress element gets `--progress: 0-100%`,
+  `data-dragover=true` while a file drag hovers the gallery (removed otherwise) and `data-dropallowed=true|false`
+  for whether the drop would be accepted (drives the overlay's allowed/blocked look);
 * tiles: `data-kind`, `data-starred`, `data-selected`, `data-candelete`, `data-armed` while the delete is armed,
   `aria-selected` on tabs, `--ratio` on tiles;
 * lightbox: `data-starred`, `data-armed`, `data-zoom=true` while zoomed; grid: `data-complete=true` when no more pages;
@@ -206,7 +211,7 @@ State is exposed to CSS as attributes and properties — the core never sets cla
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
 `codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `back`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
-(`{name}`), `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsTab`, `subsAllTabs`, `subsMode`,
+(`{name}`), `dropHere`, `dropSignIn`, `dropNotAllowed`, `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsTab`, `subsAllTabs`, `subsMode`,
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
 `subsTelegramOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadFailed`, `unsubTitle`,
 `unsubOk`, `unsubInvalid`, `unsubBadLink`, `tabNew`, `tabRename`, `tabCreateTitle`, `tabRenameTitle`,
