@@ -225,6 +225,8 @@ The core only writes text via `textContent`. CSP forbids inline script/style and
 Themes are validated by name (`^[A-Za-z0-9_-]+$`) and served read-only.
 `themes/default` and `themes/mono` (dark, editorial) ship in the repo; `mono` exists to prove the contract -
 completely different markup, class names and CSS over the same hooks, switched with one setting.
+`themes/wedding` (bright & sweet: cream/blush palette, serif italic headings, light-only) is a second
+worked example with its own markup and class names.
 `ThemingTests` enforces that every theme serves the shell, all templates and every `data-ref` the core JS uses.
 
 ## 9. Security checklist

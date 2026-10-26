@@ -57,4 +57,4 @@ In Docker, prefix with `docker compose exec eventpix`, e.g.
 
 ## Theming
 
-Copy `themes/default` (or the dark `themes/mono`) to `themes/my-theme`, edit, set `EventPix:ActiveTheme`. See `docs/architecture.md#theming-contract`.
+Copy `themes/default` (or the dark `themes/mono`, or the bright `themes/wedding`) to `themes/my-theme`, edit, set `EventPix:ActiveTheme`. See `docs/architecture.md#theming-contract`.

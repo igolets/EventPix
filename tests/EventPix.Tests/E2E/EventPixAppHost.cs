@@ -168,6 +168,7 @@ internal sealed class EventPixAppHost : IAsyncDisposable
         env["EventPix__DataPath"] = DataPath;
         env["EventPix__StoragePath"] = Path.Combine(_root, "media");
         env["EventPix__ThemesPath"] = ThemesPath;
+        env["EventPix__ActiveTheme"] = "default";   // E2E asserts the default theme's copy; a locally flipped ActiveTheme must not change that.
     }
 
     private void Capture(string? line)
