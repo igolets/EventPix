@@ -107,7 +107,10 @@ label { font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; col
 /* darkroom (lightbox) */
 .darkroom { position: fixed; inset: 0; z-index: 50; background: rgb(8 7 6 / .96); display: grid;
   grid-template-rows: 1fr auto; color: var(--word); }
-.easel { display: grid; place-items: center; min-height: 0; padding: 1.25rem; overflow: hidden; }
+/* Definite 1fr tracks so max-width/max-height: 100% on the media resolve against the stage box
+   (auto tracks size to the media, which would ignore the percentages); touch-action keeps pans/pinches. */
+.easel { display: grid; place-items: center; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  min-height: 0; padding: 1.25rem; overflow: hidden; touch-action: none; }
 .easel img, .easel video { max-width: 100%; max-height: 100%; object-fit: contain; border: 1px solid var(--line2);
   touch-action: none; user-select: none; -webkit-user-select: none; will-change: transform; }
 .darkroom[data-zoom=true] .easel { cursor: grab; }

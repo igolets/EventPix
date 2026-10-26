@@ -209,6 +209,10 @@ State is exposed to CSS as attributes and properties — the core never sets cla
 * tiles: `data-kind`, `data-starred`, `data-selected`, `data-candelete`, `data-armed` while the delete is armed,
   `aria-selected` on tabs, `--ratio` on tiles;
 * lightbox: `data-starred`, `data-armed`, `data-zoom=true` while zoomed; grid: `data-complete=true` when no more pages;
+  the core pans and pinch/scroll-zooms the media element itself (it is created non-draggable), so the theme's stage
+  must size its media area with definite tracks (e.g. `grid-template: minmax(0,1fr) / minmax(0,1fr)`) — auto tracks
+  size to the media and its `max-width`/`max-height: 100%` would never constrain it — and should keep
+  `touch-action: none` on the stage;
 * manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed.
 
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
