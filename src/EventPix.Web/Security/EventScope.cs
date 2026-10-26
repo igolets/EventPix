@@ -60,9 +60,11 @@ internal static class EventScopeExtensions
     }
 
     /// <summary>Marks an endpoint as member-only (uploads, stars, management): anonymous callers get 401.</summary>
-    public static RouteHandlerBuilder RequireMember(this RouteHandlerBuilder endpoint) =>
-        endpoint.AddEndpointFilter(static async (ctx, next) =>
+    public static RouteHandlerBuilder RequireMember(this RouteHandlerBuilder endpoint)
+    {
+        return endpoint.AddEndpointFilter(static async (ctx, next) =>
             ctx.HttpContext.GetScope().Member is null
                 ? Results.Unauthorized()
                 : await next(ctx));
+    }
 }
