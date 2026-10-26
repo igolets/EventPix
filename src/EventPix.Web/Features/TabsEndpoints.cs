@@ -15,10 +15,11 @@ internal static class TabsEndpoints
 {
     private static readonly string[] _blobSuffixes = ["/original", "/thumb.jpg", "/preview.jpg"];
 
-    public static bool CanUploadTo(Event ev, Member me, Tab tab)
+    public static bool CanUploadTo(Event ev, Member? me, Tab tab)
     {
-        return me.Role == MemberRole.Owner ||
-        (ev.UploadsOpen && (tab.Kind == TabKind.Author ? tab.OwnerMemberId == me.Id : tab.AllowGuestUploads));
+        return me is not null &&
+        (me.Role == MemberRole.Owner ||
+        (ev.UploadsOpen && (tab.Kind == TabKind.Author ? tab.OwnerMemberId == me.Id : tab.AllowGuestUploads)));
     }
 
     public static void Map(RouteGroupBuilder g)
@@ -31,8 +32,9 @@ internal static class TabsEndpoints
             var counts = await db.MediaItems.Where(m => m.EventId == ev.Id && m.Status == MediaStatus.Ready)
                 .GroupBy(m => m.TabId).Select(x => new { x.Key, N = x.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, ct);
             return Results.Ok(tabs.Select(t => new TabDto(
-                t.Id, t.Name, t.Kind, counts.GetValueOrDefault(t.Id), CanUploadTo(ev, me!, t), t.OwnerMemberId == me!.Id,
-                me.Role == MemberRole.Owner || t.OwnerMemberId == me.Id)));
+                t.Id, t.Name, t.Kind, counts.GetValueOrDefault(t.Id), CanUploadTo(ev, me, t),
+                me is not null && t.OwnerMemberId == me.Id,
+                me is { Role: MemberRole.Owner } || (me is not null && t.OwnerMemberId == me.Id))));
         });
 
         g.MapPost("/tabs", async (CreateTabDto dto, HttpContext h, EventPixDb db, CancellationToken ct) =>
@@ -60,7 +62,7 @@ internal static class TabsEndpoints
             }
 
             return Results.Created($"tabs/{tab.Id}", new { tab.Id });
-        });
+        }).RequireMember();
 
         g.MapPatch("/tabs/{id:guid}", async (Guid id, PatchTabDto dto, HttpContext h, EventPixDb db, CancellationToken ct) =>
         {
@@ -103,7 +105,7 @@ internal static class TabsEndpoints
             }
 
             return Results.NoContent();
-        });
+        }).RequireMember();
 
         g.MapPut("/tabs/order", async (ReorderTabsDto dto, HttpContext h, EventPixDb db, CancellationToken ct) =>
         {
@@ -138,7 +140,7 @@ internal static class TabsEndpoints
 
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
-        });
+        }).RequireMember();
 
         g.MapDelete("/tabs/{id:guid}", async (Guid id, HttpContext h, EventPixDb db, IMediaStorage storage, CancellationToken ct) =>
         {
@@ -167,6 +169,6 @@ internal static class TabsEndpoints
             }
 
             return Results.NoContent();
-        });
+        }).RequireMember();
     }
 }

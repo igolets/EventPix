@@ -32,7 +32,10 @@ Single deployable. No external queue, cache or object store. Replace `IMediaStor
 * Event URL: `/e/{token}`. Token = 192 random bits, base64url. Only `SHA-256(token)` is used for lookup;
   a Data-Protection-encrypted copy is kept so notification mail can include the link.
   `rotate-token` invalidates a leaked link.
-* The link alone shows only the event name and a login box. Content needs a **session**.
+* **Guest viewing**: on events that are not `InviteOnly`, the link alone browses the album read-only —
+  tabs, media (including inline video) and downloads (unless `DownloadsOpen` is off). Uploading, starring,
+  notifications and every management action still need a **session**. `InviteOnly` events keep the login
+  wall for viewing too, or the invite gate would mean nothing.
 * Login: guest enters e-mail -> 6-digit code (HMAC-hashed with a server pepper, 10 min, 5 attempts, 3 codes/10 min)
   -> HttpOnly SameSite=Lax cookie holding `mid` (member) and `eid` (event). `InviteOnly` events accept only
   e-mails on the invite list (owner-managed via `/invites` or `add-invites`) or already-existing members.
@@ -101,18 +104,18 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | POST `/auth/verify` `{email, code}` | no, rate-limited | Set session cookie |
 | POST `/auth/logout` | no | Clear cookie |
 | GET `/me`, PUT `/me` | session | Profile |
-| GET `/tabs`; POST `/tabs` | session | List (counts, canUpload, canRename) / create tab: `personal:true` (or any non-owner) creates a named Author tab owned by the caller; owners may omit it to create a Section. Duplicate Author tab name -> 409 `name_in_use` |
+| GET `/tabs`; POST `/tabs` | session or guest; POST: session | List (counts, canUpload, canRename; guests get all-false) / create tab: `personal:true` (or any non-owner) creates a named Author tab owned by the caller; owners may omit it to create a Section. Duplicate Author tab name -> 409 `name_in_use` |
 | PATCH `/tabs/{id}` `{name?, allowGuestUploads?}` | owner or tab owner | Rename any tab; only owners toggle Section guest uploads. Duplicate Author tab name -> 409 `name_in_use` |
 | PUT `/tabs/order` `{ids}` | owner | Reorder section tabs (listed order first, then the rest) |
 | DELETE `/tabs/{id}` | owner or tab owner | Remove tab + its media rows + blobs (members: own Author tabs only) |
-| GET `/tabs/{id}/media?skip&take` | session | Page of items (with `starred`, `canDelete` = uploader or owner) |
+| GET `/tabs/{id}/media?skip&take` | session or guest | Page of items (with `starred`, `canDelete` = uploader or owner; guests always false) |
 | GET/POST/DELETE `/invites` | owner | Invite list for InviteOnly events (add pre-registered e-mails, see who joined) |
-| GET `/media/{id}/{thumb\|preview\|original}[?download=true]` | session | Bytes. Original supports HTTP Range for video |
+| GET `/media/{id}/{thumb\|preview\|original}[?download=true]` | session or guest | Bytes. Original supports HTTP Range for video |
 | POST `/uploads[?tab=id]` multipart `files` | session | Upload; default = own tab |
 | DELETE `/media/{id}` | uploader or owner | Remove + blobs |
 | PUT/DELETE `/media/{id}/star` | session | Star / unstar |
-| GET `/download[?tab=id][&starred=true]` | session | Streamed ZIP: file = `/media/..?download`, tab, starred, or everything |
-| POST `/download` `{ids}` | session | Streamed ZIP of the selected items (multi-select). Ids of other events are silently dropped; max 500 |
+| GET `/download[?tab=id][&starred=true]` | session or guest (starred needs a session) | Streamed ZIP: file = `/media/..?download`, tab, starred, or everything |
+| POST `/download` `{ids}` | session or guest | Streamed ZIP of the selected items (multi-select). Ids of other events are silently dropped; max 500 |
 | GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings. PUT accepts `Email` only (confirmed via the sign-in address); `Telegram` answers 400 `telegram_use_link` — link via the bot instead. Deleting a subscription also drops its pending outbox rows (cascade) |
 | GET `/subscriptions/telegram-link[?tab=id&mode=x]` | session | Mint a single-use 15-minute code and return `{url}` = `https://t.me/<bot>?start=<code>`; 501 when no bot is configured |
 | POST `/api/unsubscribe/{id}/{sig}` | HMAC link | One-click unsubscribe (valid sig is always 204, even if already gone) |
@@ -201,7 +204,7 @@ State is exposed to CSS as attributes and properties — the core never sets cla
 * manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed.
 
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
-`codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `downloadTab`, `downloadStarred`, `downloadAll`,
+`codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `signin`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
 (`{name}`), `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsTab`, `subsAllTabs`, `subsMode`,
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,

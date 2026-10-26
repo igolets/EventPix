@@ -189,7 +189,9 @@ app.MapGet("/u/{token}", () => Results.File(Path.Combine(themeDir, "index.html")
 var open = app.MapGroup("/api/e/{token}").WithEventScope(requireMember: false);
 AuthEndpoints.Map(open);
 
-var api = app.MapGroup("/api/e/{token}").WithEventScope(requireMember: true);
+// Guest viewing: anonymous callers may read open albums (tabs, media, downloads per DownloadsOpen);
+// everything that mutates state is marked .RequireMember(). InviteOnly events 401 anonymous reads.
+var api = app.MapGroup("/api/e/{token}").WithEventScope(requireMember: false, guestViewing: true);
 TabsEndpoints.Map(api);
 MediaEndpoints.Map(api);
 DownloadEndpoints.Map(api);

@@ -19,8 +19,10 @@ internal static class EventScopeExtensions
     /// <summary>
     /// Resolves {token} to an Event (404 if unknown) and, from the session cookie, the Member of THAT event.
     /// A cookie issued for another event never grants access here.
+    /// Guest viewing (<paramref name="guestViewing"/>) lets anonymous callers read an open album; an
+    /// <see cref="Domain.Event.InviteOnly"/> event keeps the login wall for viewing too.
     /// </summary>
-    public static RouteGroupBuilder WithEventScope(this RouteGroupBuilder group, bool requireMember)
+    public static RouteGroupBuilder WithEventScope(this RouteGroupBuilder group, bool requireMember, bool guestViewing = false)
     {
         group.AddEndpointFilter(async (ctx, next) =>
         {
@@ -46,7 +48,7 @@ internal static class EventScopeExtensions
                 member = await db.Members.AsNoTracking()
                     .FirstOrDefaultAsync(m => m.Id == mid && m.EventId == ev.Id, http.RequestAborted);
             }
-            if (requireMember && member is null)
+            if (member is null && (requireMember || (guestViewing && ev.InviteOnly)))
             {
                 return Results.Unauthorized();
             }
@@ -56,4 +58,11 @@ internal static class EventScopeExtensions
         });
         return group;
     }
+
+    /// <summary>Marks an endpoint as member-only (uploads, stars, management): anonymous callers get 401.</summary>
+    public static RouteHandlerBuilder RequireMember(this RouteHandlerBuilder endpoint) =>
+        endpoint.AddEndpointFilter(static async (ctx, next) =>
+            ctx.HttpContext.GetScope().Member is null
+                ? Results.Unauthorized()
+                : await next(ctx));
 }
