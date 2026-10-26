@@ -169,7 +169,8 @@ Core JS has no markup/styling. A theme folder provides:
 
 Hooks: `data-ref="..."` marks elements the core fills or wires (see the default theme for the full list).
 Theme markup can declare translatable text: `data-i18n="key"` sets `textContent` from the strings system
-and `data-i18n-aria="key"` sets the `aria-label`; keep them on leaf elements. The core fills both on every
+and `data-i18n-aria="key"` sets the `aria-label` and mirrors it to a `title` hover hint (so icon-only
+buttons get tooltips for free); keep them on leaf elements. The core fills both on every
 rendered view, so a theme is localisable purely through its `strings` templates.
 Gallery hooks beyond the basics: `select` (toggle multi-select), `download-selected` (POSTs `/download`),
 `progress` (upload bar), `dropzone-text` (text of the theme's drag-and-drop overlay, filled during a file
@@ -190,7 +191,9 @@ and the armed `delete` removes the tab with all its media. The `invites` dialog 
 `data-ref="close|list|empty|form|email|message"`; each `invite-row` needs `data-ref="label|state|remove"` —
 the core lists, adds and deletes invites (owner only).
 Tiles expose an optional `delete` hook (owner or uploader; per-item `canDelete` from the media listing):
-first click arms it, second deletes via `DELETE /media/{id}`; the lightbox offers the same armed `delete`.
+first click arms it, second deletes via `DELETE /media/{id}`; the lightbox offers the same armed `delete` —
+its button carries a theme-drawn glyph (e.g. a trash icon) plus a `data-ref="delete-label"` span that the
+core fills with the armed hint text and un-hides while armed, leaving the glyph itself untouched.
 The `unsubscribe` template needs `data-ref="title"` and `data-ref="message"`; the core confirms the unsubscribe
 by POSTing to `/api/unsubscribe/{id}/{sig}` and writes the outcome via `textContent`.
 The `subscriptions` dialog needs `data-ref="title|close|list|empty|form|channel|tab|mode|message"`; each

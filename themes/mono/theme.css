@@ -91,7 +91,8 @@ label { font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; col
 .frame-item:hover .strip, .strip:focus-visible { opacity: 1; }
 @media (hover: none) { .frame-item[data-candelete=true] .strip { opacity: 1; } }
 .frame-item[data-armed=true] .strip { opacity: 1; width: auto; height: auto; padding: .1rem .5rem; color: var(--bad); border-color: var(--bad); font-size: .75rem; }
-.darkroom [data-armed=true].knob { color: var(--bad); border-color: var(--bad); }
+.darkroom [data-armed=true].knob { width: auto; padding: 0 1rem; color: var(--bad); border-color: var(--bad); font-size: .85rem; }
+.darkroom [data-armed=true].knob svg { display: none; }
 
 /* owner admin dialogs */
 .manage-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
@@ -110,13 +111,15 @@ label { font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; col
 .easel img, .easel video { max-width: 100%; max-height: 100%; object-fit: contain; border: 1px solid var(--line2);
   touch-action: none; user-select: none; -webkit-user-select: none; will-change: transform; }
 .darkroom[data-zoom=true] .easel { cursor: grab; }
-.ledge { display: flex; align-items: center; gap: .25rem; padding: .8rem 1.1rem; border-top: 1px solid var(--line2);
+.ledge { display: flex; align-items: center; gap: .5rem; padding: .8rem 1.1rem; border-top: 1px solid var(--line2);
   padding-bottom: max(.8rem, env(safe-area-inset-bottom)); }
 .plaque { flex: 1; font-size: .82rem; font-style: italic; color: var(--dim); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .knob { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 1px solid transparent;
   background: transparent; color: var(--word); font-size: 1.15rem; cursor: pointer; text-decoration: none; }
 .knob:hover { border-color: var(--line2); }
+.ledge .knob { background: var(--paper); border-color: var(--line2); }
+.ledge .knob:hover { background: var(--line2); }
 .darkroom[data-starred=true] [data-ref=star] { color: var(--mark); border-color: var(--mark); }
 .knob.back, .knob.forth { position: absolute; top: 50%; translate: 0 -50%; width: 52px; height: 52px;
   background: var(--ink); font-size: 1.8rem; }
