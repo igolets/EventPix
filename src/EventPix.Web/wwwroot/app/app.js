@@ -13,7 +13,7 @@ const state = {
   selecting: false, selected: new Set(),
   isOwner: false,
   guest: false,          // browsing an open album without a session (view-only)
-  pending: null,         // files picked before signing in; uploaded after the OTP round-trip
+  pendingDialog: false,  // upload clicked as guest: open the file dialog right after the OTP round-trip
   info: null,
 };
 let templates;
@@ -30,7 +30,6 @@ const DEFAULT_STRINGS = {
   codeLabel: 'Enter the 6-digit code we e-mailed you',
   viewAlbum: 'View the album',
   upload: 'Add photos & videos',
-  signin: 'Sign in',
   notifyMe: 'Notify me',
   signout: 'Sign out',
   downloadTab: 'Download this tab',
@@ -165,8 +164,7 @@ async function showGallery(info) {
   ref(view, 'download-all').href = `${base}/download`;
   ref(view, 'download-starred').href = `${base}/download?starred=true`;
   if (state.guest) {
-    ref(view, 'signout').textContent = t('signin');
-    ref(view, 'signout').addEventListener('click', () => showLogin(info));
+    ref(view, 'signout').hidden = true;   // the upload button asks for the OTP instead
     ref(view, 'subscribe').hidden = true;      // notifications need a proven e-mail
     ref(view, 'tab-add').hidden = true;        // personal tabs need a member
     ref(view, 'download-starred').hidden = true;
@@ -175,7 +173,15 @@ async function showGallery(info) {
     ref(view, 'subscribe').addEventListener('click', () => openSubscriptions());
     ref(view, 'tab-add').addEventListener('click', () => openTabEditor());
   }
-  ref(view, 'upload-input').addEventListener('change', (e) => upload(view, [...e.target.files], e.target));
+  const uploadInput = ref(view, 'upload-input');
+  uploadInput.closest('label')?.addEventListener('click', (e) => {
+    if (state.guest) {   // guests get the OTP prompt instead of the file dialog
+      e.preventDefault();
+      state.pendingDialog = true;
+      showLogin(state.info);
+    }
+  });
+  uploadInput.addEventListener('change', (e) => upload(view, [...e.target.files], e.target));
   ref(view, 'tab-rename').addEventListener('click', () => openTabEditor(state.tab));
   ref(view, 'manage-tabs').addEventListener('click', () => openTabManager());
   ref(view, 'invites').addEventListener('click', () => openInvites());
@@ -192,10 +198,9 @@ async function showGallery(info) {
   state.view = view;
   watchSentinel(view);
   await loadTabs();
-  if (!state.guest && state.pending) {   // files picked before the OTP round-trip
-    const files = state.pending;
-    state.pending = null;
-    void upload(view, files, ref(view, 'upload-input'));
+  if (!state.guest && state.pendingDialog) {   // upload clicked as guest: continue with the file dialog
+    state.pendingDialog = false;
+    uploadInput.click();
   }
 }
 
@@ -474,11 +479,6 @@ async function toggleStar(m, tile) {
 // ---- uploads: parallel transfers with aggregate progress, then auto-refresh while processing -----------
 async function upload(view, files, input) {
   if (files.length === 0) return;
-  if (state.guest) {   // uploading needs a proven identity: run the OTP round-trip first
-    state.pending = files;
-    showLogin(state.info);
-    return;
-  }
   const status = ref(view, 'status');
   const bar = ref(view, 'progress');
   view.dataset.uploading = 'true';
