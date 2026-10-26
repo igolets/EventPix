@@ -181,6 +181,72 @@ public sealed partial class E2ETests(PlaywrightFixture fixture)
         }
     }
 
+    [Fact]
+    public async Task Drag_And_Drop_Uploads_For_Members_And_Sends_Guests_To_Login()
+    {
+        await using var app = new EventPixAppHost();
+        await app.StartAsync();
+        var ownerEmail = $"e2e-{Guid.NewGuid():N}@example.com";
+
+        // Open event: guests may browse, but a dropped file must never upload without a session.
+        var (_, open, _) = await app.RunCommandAsync("create-event", "E2E Open Album", ownerEmail);
+        var openToken = EventTokenRegex().Match(open).Groups[1].Value;
+
+        // Invite-only event: the login wall shows naturally so the member can sign in through the UI.
+        var (_, wall, _) = await app.RunCommandAsync("create-event", "E2E Walled Album", ownerEmail, "--invite-only");
+        var wallToken = EventTokenRegex().Match(wall).Groups[1].Value;
+
+        // Synthetic drag events carrying a real DataTransfer; CDP evaluation is not subject to the CSP.
+        var jpeg = Convert.ToBase64String(TestJpeg.Asymmetric());
+        const string dragEnter = """
+            (b64) => {
+              const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+              const dt = new DataTransfer();
+              dt.items.add(new File([bytes], 'dropped.jpg', { type: 'image/jpeg' }));
+              window.__drop = dt;
+              document.querySelector("[data-tpl='gallery']")
+                .dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+            }
+            """;
+        const string dragDrop = """
+            () => {
+              const view = document.querySelector("[data-tpl='gallery']");
+              const init = { bubbles: true, cancelable: true, dataTransfer: window.__drop };
+              view.dispatchEvent(new DragEvent('dragover', init));
+              view.dispatchEvent(new DragEvent('drop', init));
+            }
+            """;
+
+        var context = await fixture.Browser.NewContextAsync();
+        await using (context)
+        {
+            // Guest: the drop is refused and the OTP wall comes up instead.
+            var guest = await context.NewPageAsync();
+            await guest.GotoAsync($"{app.BaseAddress}e/{openToken}");
+            await Assertions.Expect(guest.Locator("[data-tpl='gallery']")).ToBeVisibleAsync();
+            await guest.EvaluateAsync(dragEnter, jpeg);
+            await Assertions.Expect(guest.Locator("[data-tpl='gallery']")).ToHaveAttributeAsync("data-dragover", "true");
+            await Assertions.Expect(guest.Locator("[data-tpl='gallery']")).ToHaveAttributeAsync("data-dropallowed", "false");
+            await Assertions.Expect(guest.Locator("[data-ref='dropzone-text']")).ToHaveTextAsync("Sign in to add photos");
+            await guest.EvaluateAsync(dragDrop);
+            await Assertions.Expect(guest.Locator("[data-ref='email']")).ToBeVisibleAsync();
+
+            // Member: the drop uploads into the current tab, exactly like the file picker.
+            var page = await context.NewPageAsync();
+            await page.GotoAsync($"{app.BaseAddress}e/{wallToken}");
+            await page.Locator("[data-ref='email']").FillAsync(ownerEmail);
+            await page.Locator("[data-ref='email-form'] button[type='submit']").ClickAsync();
+            await page.Locator("[data-ref='code']").FillAsync(await app.WaitForCodeAsync(ownerEmail));
+            await page.Locator("[data-ref='code-form'] button[type='submit']").ClickAsync();
+            await Assertions.Expect(page.Locator("[data-tpl='gallery']")).ToBeVisibleAsync();
+            // Fresh event: no tabs yet, so the drop must behave like the picker and hit the own Author tab.
+            await page.EvaluateAsync(dragEnter, jpeg);
+            await Assertions.Expect(page.Locator("[data-tpl='gallery']")).ToHaveAttributeAsync("data-dropallowed", "true");
+            await page.EvaluateAsync(dragDrop);
+            await Assertions.Expect(page.Locator("[data-ref='status']")).ToContainTextAsync("Uploaded");
+        }
+    }
+
     /// <summary>Mirrors the notification link format: HMAC(pepper, "unsub|{id:N}") as hex.</summary>
     private static string UnsubscribeSignature(string dataPath, Guid id)
     {
