@@ -1,0 +1,358 @@
+<!-- Templates required by the EventPix core. Keep every data-ref / data-tpl name; restyle and restructure freely.
+     Rules: no inline <script>, no inline style="" attributes, no external hosts (a strict CSP is enforced). -->
+
+<template data-tpl="login">
+  <main class="gate">
+    <section class="vow">
+      <p class="kicker" data-i18n="eyebrow">With love</p>
+      <h1 class="names" data-ref="event-name"></h1>
+      <p class="muted dedication" data-ref="event-description"></p>
+      <form data-ref="email-form" class="stack">
+        <label for="email" data-i18n="emailLabel">Your e-mail</label>
+        <input id="email" data-ref="email" type="email" autocomplete="email" required placeholder="you@example.com">
+        <button class="act act-blush" type="submit" data-i18n="sendCode">Send me a code</button>
+      </form>
+      <form data-ref="code-form" class="stack">
+        <label for="code" data-i18n="codeLabel">Enter the 6-digit code we e-mailed you</label>
+        <input id="code" data-ref="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+        <button class="act act-blush" type="submit" data-i18n="viewAlbum">View the album</button>
+      </form>
+      <p class="error" data-ref="message" role="alert"></p>
+      <button class="act act-ghost" data-ref="cancel" type="button" hidden data-i18n="back">Back</button>
+    </section>
+  </main>
+</template>
+
+<template data-tpl="gallery">
+  <div class="venue">
+    <header class="wreath">
+      <div class="wreath-title">
+        <h1 class="names" data-ref="event-name"></h1>
+      </div>
+      <div class="bouquet">
+        <label class="act act-blush"><span data-i18n="upload">Add your photos &amp; videos</span>
+          <input data-ref="upload-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm" multiple hidden>
+        </label>
+        <button class="act" data-ref="subscribe" type="button" data-i18n="notifyMe">Notify me</button>
+        <button class="act act-ghost" data-ref="signout" type="button" data-i18n="signout">Sign out</button>
+      </div>
+    </header>
+    <nav class="aisle" data-ref="tabs" role="tablist" aria-label="Albums"></nav>
+    <section class="garland">
+      <a class="act act-ghost" data-ref="download-tab" href="#" data-i18n="downloadTab">Download this tab</a>
+      <a class="act act-ghost" data-ref="download-starred" href="#" data-i18n="downloadStarred">Download starred ★</a>
+      <a class="act act-ghost" data-ref="download-all" href="#" data-i18n="downloadAll">Download everything</a>
+      <button class="act" data-ref="select" type="button" aria-pressed="false" data-i18n="select">Select</button>
+      <button class="act" data-ref="tab-add" type="button" data-i18n="tabNew">New tab</button>
+      <button class="act" data-ref="tab-rename" type="button" hidden data-i18n="tabRename">Rename</button>
+      <button class="act" data-ref="manage-tabs" type="button" hidden data-i18n="manageTabs">Manage tabs</button>
+      <button class="act" data-ref="invites" type="button" hidden data-i18n="invites">Invites</button>
+      <button class="act act-blush" data-ref="download-selected" type="button" hidden>Download selected</button>
+      <span class="meter" data-ref="progress" aria-hidden="true"></span>
+      <span class="muted" data-ref="status" role="status"></span>
+    </section>
+    <main>
+      <p class="muted empty" data-ref="empty" data-i18n="empty">The album awaits its first memory. Be the one to add it!</p>
+      <div class="heirloom" data-ref="grid"></div>
+      <div class="sentinel" data-ref="sentinel" aria-hidden="true"></div>
+    </main>
+  </div>
+</template>
+
+<template data-tpl="tab">
+  <button class="ribbon" role="tab" aria-selected="false"><span data-ref="label"></span> <span class="petal" data-ref="count"></span></button>
+</template>
+
+<template data-tpl="tile">
+  <figure class="frame">
+    <button class="frame-open" data-ref="open" type="button" aria-label="Open" data-i18n-aria="ariaOpen"><img data-ref="image" loading="lazy" decoding="async" alt=""><span class="play" aria-hidden="true">▶</span></button>
+    <button class="frame-star" data-ref="star" type="button" aria-label="Star" data-i18n-aria="ariaStar">★</button>
+    <button class="frame-delete" data-ref="delete" type="button" aria-label="Delete" data-i18n-aria="ariaDelete">✕</button>
+  </figure>
+</template>
+
+<template data-tpl="lightbox">
+  <div class="lantern" role="dialog" aria-modal="true">
+    <div class="lantern-stage" data-ref="stage"></div>
+    <button class="lantern-btn lantern-prev" data-ref="prev" aria-label="Previous" data-i18n-aria="ariaPrev">‹</button>
+    <button class="lantern-btn lantern-next" data-ref="next" aria-label="Next" data-i18n-aria="ariaNext">›</button>
+    <div class="lantern-bar">
+      <span class="lantern-caption" data-ref="caption"></span>
+      <button class="lantern-btn lantern-star" data-ref="star" aria-label="Star" data-i18n-aria="ariaStar">★</button>
+      <a class="lantern-btn" data-ref="download" href="#" aria-label="Download" data-i18n-aria="ariaDownload">⬇</a>
+      <button class="lantern-btn" data-ref="fullscreen" aria-label="Full screen" data-i18n-aria="ariaFullscreen">⛶</button>
+      <button class="lantern-btn lantern-delete" data-ref="delete" type="button" aria-label="Delete" data-i18n-aria="ariaDelete">✕</button>
+      <button class="lantern-btn" data-ref="close" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+    </div>
+  </div>
+</template>
+
+<template data-tpl="unsubscribe">
+  <main class="gate">
+    <section class="vow">
+      <h1 class="names" data-ref="title"></h1>
+      <p class="muted dedication" data-ref="message" role="status"></p>
+    </section>
+  </main>
+</template>
+
+<template data-tpl="not-found">
+  <main class="gate"><section class="vow"><h1 class="names" data-i18n="notFoundTitle">Nothing here</h1><p class="muted dedication" data-i18n="notFoundText">This link is not valid.</p></section></main>
+</template>
+
+<template data-tpl="subscriptions">
+  <div class="salon">
+    <section class="vow salon-card">
+      <header>
+        <h2 class="salon-title" data-ref="title" data-i18n="subsTitle">Notifications</h2>
+        <button class="act act-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <ul class="registry" data-ref="list"></ul>
+      <p class="muted" data-ref="empty" data-i18n="subsEmpty">No notifications yet.</p>
+      <form class="stack" data-ref="form">
+        <label for="subs-channel" data-i18n="subsChannel">Channel</label>
+        <select id="subs-channel" data-ref="channel">
+          <option value="Email" data-i18n="subsEmail">E-mail</option>
+          <option value="Telegram" data-i18n="subsTelegram">Telegram</option>
+        </select>
+        <label for="subs-tab" data-i18n="subsTab">Album</label>
+        <select id="subs-tab" data-ref="tab"></select>
+        <label for="subs-mode" data-i18n="subsMode">Frequency</label>
+        <select id="subs-mode" data-ref="mode">
+          <option value="Instant" data-i18n="subsInstant">Instantly</option>
+          <option value="Digest" data-i18n="subsDigest">Daily digest</option>
+        </select>
+        <button class="act act-blush" type="submit" data-i18n="subsAdd">Save</button>
+      </form>
+      <p class="muted" data-ref="message" role="status"></p>
+    </section>
+  </div>
+</template>
+
+<template data-tpl="sub-row">
+  <li class="entry">
+    <span class="entry-label" data-ref="label"></span>
+    <button class="entry-remove" data-ref="remove" type="button" aria-label="Remove" data-i18n-aria="subsRemove">✕</button>
+  </li>
+</template>
+
+<template data-tpl="tab-editor">
+  <div class="salon">
+    <section class="vow salon-card">
+      <header>
+        <h2 class="salon-title" data-ref="title"></h2>
+        <button class="act act-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <form class="stack" data-ref="form">
+        <label for="tab-name" data-i18n="tabNameLabel">Name</label>
+        <input id="tab-name" data-ref="name" maxlength="100" autocomplete="off" required>
+        <p class="error" data-ref="message" role="alert"></p>
+        <div class="bouquet">
+          <button class="act act-danger" data-ref="delete" type="button" hidden data-i18n="tabDelete">Delete tab</button>
+          <button class="act act-blush" type="submit" data-i18n="tabSave">Save</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</template>
+
+<template data-tpl="tab-manage">
+  <div class="salon">
+    <section class="vow salon-card">
+      <header>
+        <h2 class="salon-title" data-i18n="manageTitle">Manage tabs</h2>
+        <button class="act act-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <ul class="ledger" data-ref="list"></ul>
+      <form class="stack" data-ref="form">
+        <label for="manage-section-name" data-i18n="tabNameLabel">Name</label>
+        <input id="manage-section-name" data-ref="name" maxlength="100" autocomplete="off" required>
+        <button class="act act-blush" type="submit" data-i18n="addSection">Add section</button>
+      </form>
+      <p class="error" data-ref="message" role="alert"></p>
+    </section>
+  </div>
+</template>
+
+<template data-tpl="tab-manage-row">
+  <li class="ledger-row">
+    <span class="ledger-label" data-ref="label"></span>
+    <label class="ledger-guest"><input type="checkbox" data-ref="guests"> <span data-i18n="guestUploads">Guests may upload</span></label>
+    <button class="act act-ghost ledger-move" data-ref="up" type="button" aria-label="Move up" data-i18n-aria="ariaUp">↑</button>
+    <button class="act act-ghost ledger-move" data-ref="down" type="button" aria-label="Move down" data-i18n-aria="ariaDown">↓</button>
+    <button class="act act-danger ledger-delete" data-ref="delete" type="button" data-i18n="tabDelete">Delete</button>
+  </li>
+</template>
+
+<template data-tpl="invites">
+  <div class="salon">
+    <section class="vow salon-card">
+      <header>
+        <h2 class="salon-title" data-i18n="invitesTitle">Invites</h2>
+        <button class="act act-ghost" data-ref="close" type="button" aria-label="Close" data-i18n-aria="ariaClose">✕</button>
+      </header>
+      <ul class="registry" data-ref="list"></ul>
+      <p class="muted" data-ref="empty" data-i18n="invitesEmpty">No invites yet.</p>
+      <form class="stack" data-ref="form">
+        <label for="invite-email" data-i18n="invitesEmailLabel">E-mail</label>
+        <input id="invite-email" data-ref="email" type="email" autocomplete="off" required>
+        <button class="act act-blush" type="submit" data-i18n="invitesAdd">Invite</button>
+      </form>
+      <p class="error" data-ref="message" role="alert"></p>
+    </section>
+  </div>
+</template>
+
+<template data-tpl="invite-row">
+  <li class="entry">
+    <span class="entry-label" data-ref="label"></span>
+    <span class="entry-state muted" data-ref="state"></span>
+    <button class="entry-remove" data-ref="remove" type="button" aria-label="Remove" data-i18n-aria="subsRemove">✕</button>
+  </li>
+</template>
+
+<!-- UI strings the core writes via textContent (i18n). The base template is the English fallback; add more
+     <template data-tpl="strings" data-lang="xx"> variants to translate — the browser language (or ?lang=xx)
+     picks one. Keep each template a single JSON object. Key list: docs/architecture.md#theming-contract. -->
+<template data-tpl="strings">{
+  "rateLimited": "Too many attempts. Please wait a few minutes.",
+  "emailInvalid": "Please check the e-mail address.",
+  "codeInvalid": "That code is not valid or has expired.",
+  "eyebrow": "With love",
+  "upload": "Add your photos & videos",
+  "empty": "The album awaits its first memory. Be the one to add it!",
+  "uploading": "Uploading… {percent}%",
+  "uploaded": "Uploaded {count} file(s). Preparing previews…",
+  "uploadFailed": "Upload failed: {name}",
+  "subsTitle": "Notifications",
+  "subsChannel": "Channel",
+  "subsEmail": "E-mail",
+  "subsTelegram": "Telegram",
+  "subsTab": "Album",
+  "subsAllTabs": "All albums",
+  "subsMode": "Frequency",
+  "subsInstant": "Instantly",
+  "subsDigest": "Daily digest",
+  "subsAdd": "Save",
+  "subsEmpty": "No notifications yet.",
+  "subsRemove": "Remove",
+  "subsFail": "Could not save the subscription.",
+  "subsTelegramHint": "Open this link in Telegram to finish:",
+  "subsTelegramOff": "Telegram notifications are not configured on this server.",
+  "select": "Select",
+  "selecting": "Cancel selection",
+  "downloadSelected": "Download selected ({count})",
+  "downloadFailed": "Could not download the selection.",
+  "unsubTitle": "Unsubscribe",
+  "unsubOk": "You have been unsubscribed. You will not receive any more notifications for this album.",
+  "unsubInvalid": "This link is not valid or you are already unsubscribed.",
+  "unsubBadLink": "This link is not valid.",
+  "tabNew": "New tab",
+  "tabRename": "Rename",
+  "tabCreateTitle": "New tab",
+  "tabRenameTitle": "Rename tab",
+  "tabNameLabel": "Name",
+  "tabSave": "Save",
+  "tabDelete": "Delete tab",
+  "tabDeleteArmed": "Really delete?",
+  "tabNameInUse": "You already have a tab with that name.",
+  "tabFail": "Could not save the tab.",
+  "manageTabs": "Manage tabs",
+  "manageTitle": "Manage tabs",
+  "addSection": "Add section",
+  "guestUploads": "Guests may upload",
+  "invites": "Invites",
+  "invitesTitle": "Invites",
+  "invitesEmailLabel": "E-mail",
+  "invitesAdd": "Invite",
+  "invitesEmpty": "No invites yet.",
+  "invitesJoined": "joined",
+  "invitesPending": "pending",
+  "inviteFail": "Could not save the invite.",
+  "mediaDeleteArmed": "Really delete?",
+  "ariaRename": "Rename tab",
+  "ariaDelete": "Delete",
+  "ariaUp": "Move up",
+  "ariaDown": "Move down"
+}</template>
+
+<template data-tpl="strings" data-lang="ru">{
+  "rateLimited": "Слишком много попыток. Подождите несколько минут.",
+  "emailInvalid": "Проверьте адрес электронной почты.",
+  "codeInvalid": "Код недействителен или истёк.",
+  "eyebrow": "С любовью",
+  "emailLabel": "Ваш e-mail",
+  "sendCode": "Отправить код",
+  "codeLabel": "Введите 6-значный код из письма",
+  "viewAlbum": "Открыть альбом",
+  "upload": "Поделиться фото и видео",
+  "notifyMe": "Оповещать меня",
+  "signout": "Выйти",
+  "back": "Назад",
+  "downloadTab": "Скачать эту вкладку",
+  "downloadStarred": "Скачать избранное ★",
+  "downloadAll": "Скачать всё",
+  "empty": "Альбом ждёт первого воспоминания. Будьте первым!",
+  "notFoundTitle": "Здесь ничего нет",
+  "notFoundText": "Эта ссылка недействительна.",
+  "uploading": "Загрузка… {percent}%",
+  "uploaded": "Загружено файлов: {count}. Готовим миниатюры…",
+  "uploadFailed": "Не удалось загрузить: {name}",
+  "subsTitle": "Уведомления",
+  "subsChannel": "Канал",
+  "subsEmail": "E-mail",
+  "subsTelegram": "Telegram",
+  "subsTab": "Альбом",
+  "subsAllTabs": "Все альбомы",
+  "subsMode": "Частота",
+  "subsInstant": "Сразу",
+  "subsDigest": "Ежедневная сводка",
+  "subsAdd": "Сохранить",
+  "subsEmpty": "Уведомления ещё не настроены.",
+  "subsRemove": "Удалить",
+  "subsFail": "Не удалось сохранить подписку.",
+  "subsTelegramHint": "Откройте эту ссылку в Telegram, чтобы завершить привязку:",
+  "subsTelegramOff": "Уведомления в Telegram не настроены на этом сервере.",
+  "select": "Выбрать",
+  "selecting": "Отменить выбор",
+  "downloadSelected": "Скачать выбранные ({count})",
+  "downloadFailed": "Не удалось скачать выбранные файлы.",
+  "unsubTitle": "Отписаться",
+  "unsubOk": "Вы отписались. Больше уведомлений для этого альбома не придёт.",
+  "unsubInvalid": "Ссылка недействительна или вы уже отписались.",
+  "unsubBadLink": "Ссылка недействительна.",
+  "ariaOpen": "Открыть",
+  "ariaStar": "В избранное",
+  "ariaClose": "Закрыть",
+  "ariaPrev": "Назад",
+  "ariaNext": "Вперёд",
+  "ariaFullscreen": "Во весь экран",
+  "ariaDownload": "Скачать",
+  "tabNew": "Новая вкладка",
+  "tabRename": "Переименовать",
+  "tabCreateTitle": "Новая вкладка",
+  "tabRenameTitle": "Переименовать вкладку",
+  "tabNameLabel": "Название",
+  "tabSave": "Сохранить",
+  "tabDelete": "Удалить вкладку",
+  "tabDeleteArmed": "Точно удалить?",
+  "tabNameInUse": "Вкладка с таким названием у вас уже есть.",
+  "tabFail": "Не удалось сохранить вкладку.",
+  "manageTabs": "Управление вкладками",
+  "manageTitle": "Управление вкладками",
+  "addSection": "Добавить раздел",
+  "guestUploads": "Гости могут загружать",
+  "invites": "Приглашения",
+  "invitesTitle": "Приглашения",
+  "invitesEmailLabel": "E-mail",
+  "invitesAdd": "Пригласить",
+  "invitesEmpty": "Приглашений пока нет.",
+  "invitesJoined": "присоединился",
+  "invitesPending": "ожидает",
+  "inviteFail": "Не удалось сохранить приглашение.",
+  "mediaDeleteArmed": "Точно удалить?",
+  "ariaRename": "Переименовать вкладку",
+  "ariaDelete": "Удалить",
+  "ariaUp": "Выше",
+  "ariaDown": "Ниже"
+}</template>

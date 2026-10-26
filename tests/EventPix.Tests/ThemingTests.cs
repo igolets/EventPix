@@ -10,7 +10,7 @@ namespace EventPix.Tests;
 /// </summary>
 public sealed class ThemingTests
 {
-    public static TheoryData<string> Themes { get; } = ["default", "mono"];
+    public static TheoryData<string> Themes { get; } = ["default", "mono", "wedding"];
 
     [Theory]
     [MemberData(nameof(Themes))]
