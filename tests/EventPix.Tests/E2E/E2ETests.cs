@@ -171,7 +171,7 @@ public sealed partial class E2ETests(PlaywrightFixture fixture)
             await page.GotoAsync($"{app.BaseAddress}e/{token}?lang=ru");
 
             // Static theme labels are localised through data-i18n, not just core-written strings.
-            await Assertions.Expect(page.Locator("[data-i18n='eyebrow']")).ToHaveTextAsync("Вас пригласили");
+            await Assertions.Expect(page.Locator("[data-i18n='eyebrow']")).ToHaveTextAsync("Общий альбом");
             await Assertions.Expect(page.Locator("[data-i18n='sendCode']")).ToHaveTextAsync("Отправить код");
 
             // Well-formed for the browser, too long for the server (max 254): triggers the error path.

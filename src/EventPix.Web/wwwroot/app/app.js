@@ -13,7 +13,7 @@ const state = {
   selecting: false, selected: new Set(),
   isOwner: false,
   guest: false,          // browsing an open album without a session (view-only)
-  pendingDialog: false,  // upload clicked as guest: open the file dialog right after the OTP round-trip
+  afterLogin: null,      // guest clicked upload/subscriptions: resume it right after the OTP round-trip
   info: null,
 };
 let templates;
@@ -24,7 +24,7 @@ const DEFAULT_STRINGS = {
   rateLimited: 'Too many attempts. Please wait a few minutes.',
   emailInvalid: 'Please check the e-mail address.',
   codeInvalid: 'That code is not valid or has expired.',
-  eyebrow: 'You are invited',
+  eyebrow: 'Shared album',
   emailLabel: 'Your e-mail',
   sendCode: 'Send me a code',
   codeLabel: 'Enter the 6-digit code we e-mailed you',
@@ -165,19 +165,25 @@ async function showGallery(info) {
   ref(view, 'download-starred').href = `${base}/download?starred=true`;
   if (state.guest) {
     ref(view, 'signout').hidden = true;   // the upload button asks for the OTP instead
-    ref(view, 'subscribe').hidden = true;      // notifications need a proven e-mail
     ref(view, 'tab-add').hidden = true;        // personal tabs need a member
     ref(view, 'download-starred').hidden = true;
   } else {
     ref(view, 'signout').addEventListener('click', async () => { await api('/auth/logout', { method: 'POST' }); location.reload(); });
-    ref(view, 'subscribe').addEventListener('click', () => openSubscriptions());
     ref(view, 'tab-add').addEventListener('click', () => openTabEditor());
   }
+  ref(view, 'subscribe').addEventListener('click', () => {
+    if (state.guest) {   // notifications need a proven e-mail: run the OTP round-trip first
+      state.afterLogin = 'subs';
+      showLogin(state.info);
+      return;
+    }
+    openSubscriptions();
+  });
   const uploadInput = ref(view, 'upload-input');
   uploadInput.closest('label')?.addEventListener('click', (e) => {
     if (state.guest) {   // guests get the OTP prompt instead of the file dialog
       e.preventDefault();
-      state.pendingDialog = true;
+      state.afterLogin = 'upload';
       showLogin(state.info);
     }
   });
@@ -198,9 +204,11 @@ async function showGallery(info) {
   state.view = view;
   watchSentinel(view);
   await loadTabs();
-  if (!state.guest && state.pendingDialog) {   // upload clicked as guest: continue with the file dialog
-    state.pendingDialog = false;
-    uploadInput.click();
+  if (!state.guest && state.afterLogin) {   // guest clicked upload/subscriptions: continue after the OTP
+    const action = state.afterLogin;
+    state.afterLogin = null;
+    if (action === 'upload') uploadInput.click();
+    if (action === 'subs') openSubscriptions();
   }
 }
 
