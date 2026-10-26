@@ -111,10 +111,15 @@ const t = (key, params) => {
 };
 
 // Theme markup declares translatable text with data-i18n="key" (textContent) and
-// data-i18n-aria="key" (aria-label). The core fills both from the strings system.
+// data-i18n-aria="key" (aria-label, mirrored to a title hover hint for icon-only buttons).
+// The core fills both from the strings system.
 function applyI18n(scope) {
   for (const el of scope.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
-  for (const el of scope.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  for (const el of scope.querySelectorAll('[data-i18n-aria]')) {
+    const s = t(el.dataset.i18nAria);
+    el.setAttribute('aria-label', s);
+    el.title = s;
+  }
 }
 
 const api = (path, opts = {}) =>
@@ -669,7 +674,7 @@ function openLightbox(index) {
     box.dataset.armed = 'false';
     ref(box, 'star').hidden = state.guest;
     del.hidden = !m.canDelete;
-    del.textContent = '✕';
+    delLabel.hidden = true;
   };
   const close = () => {
     box.remove();
@@ -687,10 +692,16 @@ function openLightbox(index) {
     if (res.ok) { m.starred = !m.starred; box.dataset.starred = String(m.starred); renderGrid(); }
   });
   const del = ref(box, 'delete');
+  const delLabel = ref(box, 'delete-label');   // armed-hint text; the delete glyph (theme markup) stays intact
   del.addEventListener('click', async () => {
     const m = state.items[state.lightboxIndex];
     if (!m || !m.canDelete) return;
-    if (box.dataset.armed !== 'true') { box.dataset.armed = 'true'; del.textContent = t('mediaDeleteArmed'); return; }
+    if (box.dataset.armed !== 'true') {
+      box.dataset.armed = 'true';
+      delLabel.textContent = t('mediaDeleteArmed');
+      delLabel.hidden = false;
+      return;
+    }
     close();
     await deleteMedia(m, null);
   });

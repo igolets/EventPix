@@ -127,7 +127,9 @@ label { font-size: .9rem; color: var(--muted); }
 .ledger-move:disabled { opacity: .35; cursor: default; }
 .ledger-row[data-armed=true] .ledger-delete { color: var(--danger); border-color: var(--danger); }
 .entry-state { font-size: .8rem; }
-.lantern [data-armed=true].lantern-delete { color: #ffd9e4; }
+.lantern [data-armed=true].lantern-delete { width: auto; border-radius: 999px; padding: 0 1rem; background: var(--danger);
+  border-color: transparent; color: #fff; font-size: .85rem; }
+.lantern [data-armed=true].lantern-delete svg { display: none; }
 
 /* lantern (lightbox) */
 .lantern { position: fixed; inset: 0; z-index: 50; background: var(--overlay); display: grid; grid-template-rows: 1fr auto; color: #fff; }
@@ -135,12 +137,14 @@ label { font-size: .9rem; color: var(--muted); }
 .lantern-stage img, .lantern-stage video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px;
   box-shadow: 0 10px 40px rgb(0 0 0 / .35); touch-action: none; user-select: none; -webkit-user-select: none; will-change: transform; }
 .lantern[data-zoom=true] .lantern-stage { cursor: grab; }
-.lantern-bar { display: flex; align-items: center; gap: .25rem; padding: .75rem 1rem; padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+.lantern-bar { display: flex; align-items: center; gap: .5rem; padding: .75rem 1rem; padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
 .lantern-caption { flex: 1; font-family: var(--font-display); font-style: italic; font-size: .9rem; opacity: .85;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lantern-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%;
   background: transparent; color: #fff; font-size: 1.25rem; cursor: pointer; text-decoration: none; }
 .lantern-btn:hover { background: rgb(255 255 255 / .14); }
+.lantern-bar .lantern-btn { background: rgb(255 255 255 / .16); border: 1px solid rgb(255 255 255 / .28); }
+.lantern-bar .lantern-btn:hover { background: rgb(255 255 255 / .3); }
 .lantern[data-starred=true] .lantern-star { color: var(--star); }
 .lantern-prev, .lantern-next { position: absolute; top: 50%; translate: 0 -50%; width: 52px; height: 52px; font-size: 2rem; background: rgb(255 255 255 / .10); }
 .lantern-prev { left: .75rem; } .lantern-next { right: .75rem; }
