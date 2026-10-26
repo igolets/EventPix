@@ -32,6 +32,7 @@ const DEFAULT_STRINGS = {
   upload: 'Add photos & videos',
   notifyMe: 'Notify me',
   signout: 'Sign out',
+  back: 'Back',
   downloadTab: 'Download this tab',
   downloadStarred: 'Download starred ★',
   downloadAll: 'Download everything',
@@ -138,6 +139,12 @@ function showLogin(info) {
   const emailForm = ref(view, 'email-form'), codeForm = ref(view, 'code-form'), msg = ref(view, 'message');
   codeForm.hidden = true;
   let email = '';
+
+  const cancel = ref(view, 'cancel');
+  if (cancel && state.guest) {   // the login was opened over a browsable gallery: allow going back
+    cancel.hidden = false;
+    cancel.addEventListener('click', () => void showGallery(state.info));
+  }
 
   emailForm.addEventListener('submit', async (e) => {
     e.preventDefault();

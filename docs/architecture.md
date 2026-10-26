@@ -204,7 +204,7 @@ State is exposed to CSS as attributes and properties — the core never sets cla
 * manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed.
 
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
-`codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `downloadTab`, `downloadStarred`, `downloadAll`,
+`codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `back`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
 (`{name}`), `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsTab`, `subsAllTabs`, `subsMode`,
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
