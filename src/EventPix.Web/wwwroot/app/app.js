@@ -800,6 +800,9 @@ async function openSubscriptions() {
   const dialog = tpl('subscriptions');
   const list = ref(dialog, 'list');
   const message = ref(dialog, 'message');
+  if (!state.info?.telegram) {   // bot unconfigured: the server said so via /public, so don't offer the channel
+    ref(dialog, 'channel').querySelector('option[value="Telegram"]')?.remove();
+  }
   const close = () => { document.removeEventListener('keydown', onKey); dialog.remove(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
 
