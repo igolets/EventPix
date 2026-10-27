@@ -1,5 +1,9 @@
 # EventPix
 
+<p align="center">
+  <img src="docs/logo.jpg" alt="EventPix logo" width="480">
+</p>
+
 [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=igolets_EventPix&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=igolets_EventPix)
 [![.NET](https://github.com/igolets/EventPix/actions/workflows/dotnet.yml/badge.svg)](https://github.com/igolets/EventPix/actions/workflows/dotnet.yml)
 [![CodeQL](https://github.com/igolets/EventPix/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/igolets/EventPix/actions/workflows/github-code-scanning/codeql)
@@ -12,7 +16,7 @@ star favourites and download files, tabs, the whole library, or just the starred
 * The UI theme is a plain folder of HTML templates + CSS. Change the look without touching C#.
 * MIT licensed.
 
-See `AGENTS.md` for contribution guidance and `docs/architecture.md` for the design.
+See [AGENTS.md](AGENTS.md) for contribution guidance and [docs/architecture.md](docs/architecture.md) for the design.
 
 ## Quick start
 
@@ -57,4 +61,4 @@ In Docker, prefix with `docker compose exec eventpix`, e.g.
 
 ## Theming
 
-Copy `themes/default` (or the dark `themes/mono`, or the bright `themes/wedding`) to `themes/my-theme`, edit, set `EventPix:ActiveTheme`. See `docs/architecture.md#theming-contract`.
+Copy `themes/default` (or the dark `themes/mono`, or the bright `themes/wedding`) to `themes/my-theme`, edit, set `EventPix:ActiveTheme`. See [docs/architecture.md § 8 Theming contract](docs/architecture.md#8-theming-contract).
