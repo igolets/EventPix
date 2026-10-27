@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EventPix.Web.Configuration;
 using Xunit;
 
 namespace EventPix.Tests;
@@ -93,10 +94,29 @@ public sealed class SubscriptionTests : IDisposable
             new { Channel = "Email", TabId = Guid.NewGuid(), Mode = "Instant" })).StatusCode);
     }
 
+    [Fact]
+    public async Task Public_Reports_Whether_The_Telegram_Bot_Is_Configured()
+    {
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var (token, _) = await _app.CreateEventAsync(owner);
+
+        // Default host has no bot token: the UI hides the Telegram channel.
+        var off = await _app.CreateClient().GetFromJsonAsync<PublicDto>(U($"/api/e/{token}/public"));
+        Assert.False(off!.Telegram);
+
+        using var configured = _app.Factory.WithWebHostBuilder(
+            b => b.UseSetting($"{TelegramOptions.Section}:BotToken", "test-token"));
+        var on = await configured.CreateClient().GetFromJsonAsync<PublicDto>(U($"/api/e/{token}/public"));
+        Assert.True(on!.Telegram);
+    }
+
     private static Uri U(string path)
     {
         return new(path, UriKind.Relative);
     }
+
+    [SuppressMessage("Performance", "CA1812", Justification = "Instantiated by the JSON serializer.")]
+    internal sealed record PublicDto(string Name, string Description, bool InviteOnly, bool Telegram);
 
     [SuppressMessage("Performance", "CA1812", Justification = "Instantiated by the JSON serializer.")]
     internal sealed record IdDto(Guid Id);

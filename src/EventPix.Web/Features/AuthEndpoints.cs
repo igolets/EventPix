@@ -1,9 +1,11 @@
 using System.Security.Claims;
+using EventPix.Web.Configuration;
 using EventPix.Web.Data;
 using EventPix.Web.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace EventPix.Web.Features;
 
@@ -16,10 +18,12 @@ internal static class AuthEndpoints
     /// <summary>Mapped on a group that resolves the event but does NOT require a member.</summary>
     public static void Map(RouteGroupBuilder g)
     {
-        g.MapGet("/public", (HttpContext h) =>
+        g.MapGet("/public", (HttpContext h, IOptions<TelegramOptions> telegram) =>
         {
             var ev = h.GetScope().Event;
-            return Results.Ok(new { ev.Name, ev.Description, ev.InviteOnly });
+            // Capability flag, not a secret: lets the UI hide the Telegram channel while the bot is unconfigured.
+            var hasBot = !string.IsNullOrWhiteSpace(telegram.Value.BotToken);
+            return Results.Ok(new { ev.Name, ev.Description, ev.InviteOnly, Telegram = hasBot });
         });
 
         g.MapPost("/auth/request", async (RequestCodeDto dto, HttpContext h, OtpService otp, CancellationToken ct) =>

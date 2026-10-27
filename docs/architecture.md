@@ -99,7 +99,7 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 
 | Method & path | Auth | Purpose |
 |---|---|---|
-| GET `/public` | no | Event name/description for the login page |
+| GET `/public` | no | Event name/description for the login page, plus server capabilities: `telegram` is `true` only when a bot token is configured (the UI hides the Telegram channel otherwise) |
 | POST `/auth/request` `{email}` | no, rate-limited | Send code (always 202) |
 | POST `/auth/verify` `{email, code}` | no, rate-limited | Set session cookie |
 | POST `/auth/logout` | no | Clear cookie |
