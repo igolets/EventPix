@@ -20,3 +20,4 @@ TestResults/
 
 # SonarScanner local working directory
 .sonarqube/
+src/EventPix.Web/appsettings.Development.json

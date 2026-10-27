@@ -159,7 +159,8 @@ Codes are purged opportunistically; messages never log their contents.
 
 ## 8. Theming contract
 Core JS has no markup/styling. A theme folder provides:
-* `index.html`: shell that loads `/theme/theme.css` and `/app/app.js`, has `<div id="app">`.
+* `index.html`: shell that loads `/theme/theme.css` and `/app/app.js`, has `<div id="app">`, and links the
+  app-wide favicon `/favicon.png` (a brand asset served from `wwwroot`, shared by all themes).
 * `templates.html`: `<template data-tpl="...">` for `login`, `gallery`, `tab`, `tile`, `lightbox`, `unsubscribe`, `not-found`,
   `subscriptions`, `sub-row`, `tab-editor`, `tab-manage`, `tab-manage-row`, `invites`, `invite-row`,
   plus an optional `strings` template holding a JSON object of UI strings (i18n; English fallback).
