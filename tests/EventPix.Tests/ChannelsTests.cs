@@ -81,6 +81,12 @@ public sealed class ChannelsTests
     }
 
     [Fact]
+    public void MaxChannel_Without_A_Max_Gateway_Is_Rejected()
+    {
+        Assert.Throws<InvalidOperationException>(() => new MaxChannel([new StubGateway(NotifyChannel.Telegram)]));
+    }
+
+    [Fact]
     public async Task MaxChannel_Delivers_Through_The_Max_Gateway()
     {
         var gateway = new StubGateway(NotifyChannel.Max);

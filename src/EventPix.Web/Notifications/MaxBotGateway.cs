@@ -14,19 +14,37 @@ namespace EventPix.Web.Notifications;
 /// deep-link starts (bot_started carries the payload) and /start text messages; sends via
 /// POST /messages. No official .NET SDK exists; the BCL HttpClient is preferred over a package.
 /// </summary>
-internal sealed class MaxBotGateway(IOptions<MaxOptions> options) : IBotLinkGateway
+internal sealed class MaxBotGateway : IBotLinkGateway, IDisposable
 {
     private const string BaseUri = "https://platform-api2.max.ru/";
 
-    // One client for the app lifetime: the long poll (timeout=30s) needs a generous client timeout.
-    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(100) };
-
     private static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+
+    private readonly IOptions<MaxOptions> _options;
+    private readonly HttpClient _http;
+
+    // DI: one app-lifetime client; the long poll (timeout=30s) needs a generous client timeout.
+    public MaxBotGateway(IOptions<MaxOptions> options)
+        : this(options, new HttpClient { Timeout = TimeSpan.FromSeconds(100) })
+    {
+    }
+
+    // Internal for tests: injects a client backed by a stub handler.
+    internal MaxBotGateway(IOptions<MaxOptions> options, HttpClient http)
+    {
+        _options = options;
+        _http = http;
+    }
 
     public NotifyChannel Channel => NotifyChannel.Max;
 
     public async Task<string?> GetBotUsernameAsync(CancellationToken ct)
     {
+        if (Token is null)
+        {
+            return null;
+        }
+
         using var response = await RequestAsync(HttpMethod.Get, "me", ct);
         return (await ReadAsync<BotInfo>(response, ct))?.Username;
     }
@@ -64,6 +82,11 @@ internal sealed class MaxBotGateway(IOptions<MaxOptions> options) : IBotLinkGate
             var page = await PollAsync(onMessage, marker, ct);
             marker = page?.Marker ?? marker;
         }
+    }
+
+    public void Dispose()
+    {
+        _http.Dispose();
     }
 
     private async Task<Updates?> PollAsync(
@@ -106,7 +129,7 @@ internal sealed class MaxBotGateway(IOptions<MaxOptions> options) : IBotLinkGate
         };
     }
 
-    private string? Token => string.IsNullOrWhiteSpace(options.Value.BotToken) ? null : options.Value.BotToken;
+    private string? Token => string.IsNullOrWhiteSpace(_options.Value.BotToken) ? null : _options.Value.BotToken;
 
     private async Task<HttpResponseMessage> RequestAsync(
         HttpMethod method, string uri, CancellationToken ct, HttpContent? content = null)

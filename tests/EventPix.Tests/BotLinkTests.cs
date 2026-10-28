@@ -170,6 +170,21 @@ public sealed class BotLinkTests : IDisposable
     }
 
     [Fact]
+    public async Task Bot_Start_Confirmation_Handles_A_Removed_Tab()
+    {
+        var owner = "owner-" + Guid.NewGuid().ToString("N") + "@example.com";
+        var (eventId, memberId, _) = await MintAsync(owner, NotifyChannel.Max, NotifyMode.Instant);
+
+        // The tab was deleted during the 15-minute code window: confirm gracefully, not with an error.
+        var code = await MintCodeAsync(eventId, memberId, NotifyChannel.Max, NotifyMode.Instant, Guid.NewGuid());
+        await Worker().OnUpdateAsync(_max, 555, "/start " + code, CancellationToken.None);
+
+        var message = Assert.Single(_max.Sent);
+        Assert.Contains("a removed album", message.Text, StringComparison.Ordinal);
+        Assert.Contains("as soon as it is added", message.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Max_Start_Confirms_A_Max_Subscription()
     {
         var owner = "owner-" + Guid.NewGuid().ToString("N") + "@example.com";
