@@ -24,7 +24,10 @@ public sealed class BotLinkTests : IDisposable
         });
     }
 
-    public void Dispose() => _app.Dispose();
+    public void Dispose()
+    {
+        _app.Dispose();
+    }
 
     [Fact]
     public async Task Telegram_Link_Mints_Url_And_Stores_Only_The_Code_Hash()
