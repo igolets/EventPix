@@ -22,6 +22,8 @@ flowchart LR
   N[NotificationWorker] --> DB
   N --> C1[EmailChannel / MailKit]
   N --> C2[TelegramChannel / Telegram.Bot]
+  N --> C3[MaxChannel / REST API]
+  N -. linking .-> GW[BotLinkWorker<br/>Telegram + MAX long polling]
   T[/themes/name<br/>HTML templates + CSS/] -. served at /theme .-> B
 ```
 
@@ -70,8 +72,8 @@ erDiagram
   SUBSCRIPTION { guid Id PK  guid EventId FK  guid MemberId FK  enum Channel  string Address  guid TabId  enum Mode  bool Confirmed }
   SUBSCRIPTION ||--o{ OUTBOX : queues
   OUTBOX { long Id PK  guid SubscriptionId FK  enum Channel  string Address  string EventName  string Url  string UnsubscribeUrl  string GroupsJson  datetime NotBeforeUtc  int Attempts  datetime SentUtc }
-  EVENT ||--o{ TELEGRAMLINKCODE : issues
-  TELEGRAMLINKCODE { guid Id PK  string CodeHash UK  guid EventId FK  guid MemberId FK  guid TabId  enum Mode  datetime ExpiresUtc  datetime ConsumedUtc }
+  EVENT ||--o{ BOTLINKCODE : issues
+  BOTLINKCODE { guid Id PK  enum Channel  string CodeHash UK  guid EventId FK  guid MemberId FK  guid TabId  enum Mode  datetime ExpiresUtc  datetime ConsumedUtc }
 ```
 
 Notes
@@ -99,7 +101,7 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 
 | Method & path | Auth | Purpose |
 |---|---|---|
-| GET `/public` | no | Event name/description for the login page, plus server capabilities: `telegram` is `true` only when a bot token is configured (the UI hides the Telegram channel otherwise) |
+| GET `/public` | no | Event name/description for the login page, plus server capabilities: `telegram` / `max` are `true` only when that bot token is configured (the UI hides the channel otherwise) |
 | POST `/auth/request` `{email}` | no, rate-limited | Send code (always 202) |
 | POST `/auth/verify` `{email, code}` | no, rate-limited | Set session cookie |
 | POST `/auth/logout` | no | Clear cookie |
@@ -116,8 +118,8 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | PUT/DELETE `/media/{id}/star` | session | Star / unstar |
 | GET `/download[?tab=id][&starred=true]` | session or guest (starred needs a session) | Streamed ZIP: file = `/media/..?download`, tab, starred, or everything |
 | POST `/download` `{ids}` | session or guest | Streamed ZIP of the selected items (multi-select). Ids of other events are silently dropped; max 500 |
-| GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings. PUT accepts `Email` only (confirmed via the sign-in address); `Telegram` answers 400 `telegram_use_link` — link via the bot instead. Deleting a subscription also drops its pending outbox rows (cascade) |
-| GET `/subscriptions/telegram-link[?tab=id&mode=x]` | session | Mint a single-use 15-minute code and return `{url}` = `https://t.me/<bot>?start=<code>`; 501 when no bot is configured |
+| GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings. PUT accepts `Email` only (confirmed via the sign-in address); bot channels answer 400 `bot_use_link` — link via the bot instead. Deleting a subscription also drops its pending outbox rows (cascade) |
+| GET `/subscriptions/bot-link?channel=Telegram\|Max[&tab=id&mode=x]` | session | Mint a single-use 15-minute code and return `{url}` = the bot's deep link with the code as payload (`https://t.me/...` or `https://max.ru/...`); 501 `bot_not_configured` when that bot is unset, 400 `unknown_channel` for non-bot channels |
 | POST `/api/unsubscribe/{id}/{sig}` | HMAC link | One-click unsubscribe (valid sig is always 204, even if already gone) |
 | GET `/u/{id}.{sig}` | HMAC link | Unsubscribe page: theme shell + core JS confirming via the API above |
 
@@ -151,11 +153,15 @@ window. *Deliver*: due rows are sent through their `INotificationChannel`; failu
 at-least-once. Channels only transport a subject + body; `Composer` renders all texts, so a new channel
 is one class + one DI line.
 
-**Telegram linking**: the web UI asks `/subscriptions/telegram-link` for a 128-bit single-use code
-(stored only as SHA-256, 15-minute TTL). The member opens `t.me/<bot>?start=<code>`; `TelegramUpdateWorker`
-long-polls the bot (idle when `Telegram:BotToken` is unset), consumes the code and creates a confirmed
-subscription bound to the chat id — the bot proves the chat, like the sign-in code proves the e-mail.
-Codes are purged opportunistically; messages never log their contents.
+**Bot linking (Telegram and MAX)**: the web UI asks `/subscriptions/bot-link?channel=…` for a 128-bit
+single-use code (stored only as SHA-256, 15-minute TTL, together with its channel). The member opens the
+bot's deep link (`t.me/<bot>?start=<code>` or `max.ru/<bot>?start=<code>`); `BotLinkWorker` long-polls each
+configured bot (idle when its `Telegram:BotToken` / `Max:BotToken` is unset), consumes the code for its own
+channel only and creates a confirmed subscription bound to the chat id - the bot proves the chat, like the
+sign-in code proves the e-mail. Codes are purged opportunistically; messages never log their contents.
+MAX is a plain REST client over `platform-api2.max.ru` (raw token in the `Authorization` header):
+`GET /me` for the bot username, `POST /messages?chat_id=…` for delivery, `GET /updates` long polling for
+`bot_started` (deep-link payload) and `message_created` (`/start <code>`) updates.
 
 ## 8. Theming contract
 Core JS has no markup/styling. A theme folder provides:
@@ -199,7 +205,8 @@ The `unsubscribe` template needs `data-ref="title"` and `data-ref="message"`; th
 by POSTing to `/api/unsubscribe/{id}/{sig}` and writes the outcome via `textContent`.
 The `subscriptions` dialog needs `data-ref="title|close|list|empty|form|channel|tab|mode|message"`; each
 `sub-row` needs `data-ref="label|remove"`. The core lists current subscriptions, saves e-mail ones via
-`PUT /subscriptions`, mints the deep link via `GET /subscriptions/telegram-link` for Telegram, and deletes
+`PUT /subscriptions`, mints the deep link via `GET /subscriptions/bot-link?channel=…` for bot channels
+(hiding those the server's `/public` capabilities marked unconfigured), and deletes
 via `DELETE /subscriptions/{id}`.
 
 State is exposed to CSS as attributes and properties — the core never sets classes for looks:
@@ -219,9 +226,9 @@ State is exposed to CSS as attributes and properties — the core never sets cla
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
 `codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `back`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
-(`{name}`), `dropHere`, `dropSignIn`, `dropNotAllowed`, `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsTab`, `subsAllTabs`, `subsMode`,
+(`{name}`), `dropHere`, `dropSignIn`, `dropNotAllowed`, `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsMax`, `subsTab`, `subsAllTabs`, `subsMode`,
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
-`subsTelegramOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadFailed`, `unsubTitle`,
+`subsTelegramOff`, `subsMaxHint`, `subsMaxOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadFailed`, `unsubTitle`,
 `unsubOk`, `unsubInvalid`, `unsubBadLink`, `tabNew`, `tabRename`, `tabCreateTitle`, `tabRenameTitle`,
 `tabNameLabel`, `tabSave`, `tabDelete`, `tabDeleteArmed`, `tabNameInUse`, `tabFail`, `manageTabs`,
 `manageTitle`, `addSection`, `guestUploads`, `invites`, `invitesTitle`, `invitesEmailLabel`, `invitesAdd`,
@@ -244,7 +251,7 @@ worked example with its own markup and class names.
 * [x] Cookie: HttpOnly, SameSite=Lax, Secure when proxy forwards https; per-event claim check
 * [x] CSRF header, strict CSP, `no-referrer`, `noindex`, `nosniff`, `frame-ancestors 'none'`
 * [x] Uploads: size limit, content sniffing, whitelist types, no SVG/HTML, server-generated paths, pixel-count guard
-* [x] Telegram link codes: 128-bit single-use, 15-minute TTL, stored only as SHA-256; bot-confirmed chat ids
+* [x] Bot link codes: 128-bit single-use, 15-minute TTL, stored only as SHA-256, scoped to their channel; bot-confirmed chat ids
 * [x] Media served only through authorised endpoints, never from a static path
 * [x] ffmpeg via `ArgumentList` (no shell), timeout
 * [x] Log level for `Hosting.Diagnostics` lowered so tokens in URLs are not logged at Information
@@ -296,7 +303,12 @@ Workflows: `.github/workflows/dotnet.yml` (build, tests, vulnerable-package chec
    (patent-encumbered; licence risk against the permissive-only rule). `FileSniffer` rejects HEIC with the standard
    `unsupported_type` error; iPhone guests can switch the camera to "Most Compatible" (JPEG).
 2. Video: transcode to a web-friendly H.264 preview? (CPU heavy; make it optional.)
-3. ~~Telegram linking UX~~ — decided: deep link `t.me/bot?start=<code>` minted by the web UI (M3).
+3. ~~Telegram linking UX~~ — decided: deep link `t.me/bot?start=<code>` minted by the web UI (M3); generalised to both bots (MAX deep link `max.ru/<bot>?start=<code>`).
+4. MAX messenger update delivery: the API recommends webhooks (`POST /subscriptions`) for production and
+   calls long polling dev-only, but webhooks need a public HTTPS endpoint with a trusted certificate.
+   EventPix self-hosters already run behind a reverse proxy, so long polling (same as the Telegram worker)
+   ships for now; webhook support would be a new `IBotLinkGateway` behaviour + `Max:WebhookUrl` config if it
+   ever bites (30 rps limit is far away at one poll per 30 s).
 4. ~~Owner admin web UI vs. staying CLI-only~~ — decided: the owner UI manages tabs (create sections, rename,
    reorder, per-section guest uploads, delete), invites and media moderation directly; the CLI remains for
    creating events, rotating tokens and bulk invites.

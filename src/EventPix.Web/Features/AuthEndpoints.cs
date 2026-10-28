@@ -18,12 +18,13 @@ internal static class AuthEndpoints
     /// <summary>Mapped on a group that resolves the event but does NOT require a member.</summary>
     public static void Map(RouteGroupBuilder g)
     {
-        g.MapGet("/public", (HttpContext h, IOptions<TelegramOptions> telegram) =>
+        g.MapGet("/public", (HttpContext h, IOptions<TelegramOptions> telegram, IOptions<MaxOptions> max) =>
         {
             var ev = h.GetScope().Event;
-            // Capability flag, not a secret: lets the UI hide the Telegram channel while the bot is unconfigured.
-            var hasBot = !string.IsNullOrWhiteSpace(telegram.Value.BotToken);
-            return Results.Ok(new { ev.Name, ev.Description, ev.InviteOnly, Telegram = hasBot });
+            // Capability flags, not secrets: let the UI hide bot channels while their bot is unconfigured.
+            var hasTelegram = !string.IsNullOrWhiteSpace(telegram.Value.BotToken);
+            var hasMax = !string.IsNullOrWhiteSpace(max.Value.BotToken);
+            return Results.Ok(new { ev.Name, ev.Description, ev.InviteOnly, Telegram = hasTelegram, Max = hasMax });
         });
 
         g.MapPost("/auth/request", async (RequestCodeDto dto, HttpContext h, OtpService otp, CancellationToken ct) =>

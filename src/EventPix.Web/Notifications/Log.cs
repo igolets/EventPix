@@ -18,6 +18,6 @@ internal static partial class Log
     internal static partial void Dropped(
         this ILogger logger, Exception exception, NotifyChannel channel, Guid id, int attempts);
 
-    [LoggerMessage(LogLevel.Error, "Telegram polling failed")]
-    internal static partial void PollingFailed(this ILogger logger, Exception exception);
+    [LoggerMessage(LogLevel.Error, "Bot polling failed for {Channel}")]
+    internal static partial void PollingFailed(this ILogger logger, Exception exception, NotifyChannel channel);
 }

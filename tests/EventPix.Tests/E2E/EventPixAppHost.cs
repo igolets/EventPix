@@ -119,7 +119,9 @@ internal sealed class EventPixAppHost : IAsyncDisposable
 
     public async Task<string> WaitForCodeAsync(string email)
     {
-        var rx = new Regex(Regex.Escape($"to {email}:") + ".*?Your code: (\\d{6})",
+        // The OTP body may be localised and the child process writes it in the OEM code page, so
+        // match only ASCII-stable text: the address, then the first 6-digit run (the code).
+        var rx = new Regex(Regex.Escape($"to {email}:") + ".*?(?<!\\d)(\\d{6})(?!\\d)",
             RegexOptions.Singleline | RegexOptions.Compiled);
         var deadline = DateTime.UtcNow.AddSeconds(30);
         while (DateTime.UtcNow < deadline)
@@ -133,7 +135,7 @@ internal sealed class EventPixAppHost : IAsyncDisposable
             await Task.Delay(200);
         }
 
-        throw new TimeoutException($"No OTP logged for {email}.");
+        throw new TimeoutException($"No OTP logged for {email}.\nOutput tail:\n{OutputTail()}");
     }
 
     /// <summary>Signs a member in over the real HTTP API (cookie kept in the caller's HttpClient).</summary>
@@ -165,6 +167,7 @@ internal sealed class EventPixAppHost : IAsyncDisposable
     private void ApplyEnvironment(IDictionary<string, string?> env)
     {
         env["ASPNETCORE_ENVIRONMENT"] = "Development";   // LogEmailSender prints OTP codes
+        env["Smtp__Host"] = "";   // a local appsettings.Development.json with a real relay must not steal the OTP mail
         env["EventPix__DataPath"] = DataPath;
         env["EventPix__StoragePath"] = Path.Combine(_root, "media");
         env["EventPix__ThemesPath"] = ThemesPath;
@@ -189,6 +192,14 @@ internal sealed class EventPixAppHost : IAsyncDisposable
         lock (_sync)
         {
             return string.Join("\n", _output);
+        }
+    }
+
+    private string OutputTail()
+    {
+        lock (_sync)
+        {
+            return string.Join("\n", _output.TakeLast(40));
         }
     }
 

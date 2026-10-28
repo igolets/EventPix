@@ -19,7 +19,8 @@ namespace EventPix.Tests;
 /// </summary>
 internal sealed partial class TestApp : IDisposable
 {
-    [GeneratedRegex(@"to (?<to>[^:]+):.*?Your code: (?<code>\d{6})", RegexOptions.Singleline, 250)]
+    // Matches both the English and the localised (ru) OTP mail body.
+    [GeneratedRegex(@"to (?<to>[^:]+):.*?(?:Your code|Ваш код): (?<code>\d{6})", RegexOptions.Singleline, 250)]
     private static partial Regex CodeLine();
 
     public TestAppFactory Factory { get; }
@@ -134,6 +135,8 @@ internal sealed class TestAppFactory : WebApplicationFactory<Program>
         builder.UseSetting($"{EventPixOptions.Section}:StoragePath", Path.Combine(Root, "media"));
         builder.UseSetting($"{EventPixOptions.Section}:ThemesPath", themes);
         builder.UseSetting($"{SmtpOptions.Section}:Host", "");   // LogEmailSender prints codes to the log
+        builder.UseSetting($"{TelegramOptions.Section}:BotToken", "");   // a local appsettings.Development.json
+        builder.UseSetting($"{MaxOptions.Section}:BotToken", "");        // must not leak bot tokens into tests
         builder.ConfigureServices(services =>
         {
             _configureServices?.Invoke(services);

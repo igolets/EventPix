@@ -41,3 +41,9 @@ internal sealed class TelegramOptions
     public const string Section = "Telegram";
     public string BotToken { get; set; } = "";
 }
+
+internal sealed class MaxOptions
+{
+    public const string Section = "Max";
+    public string BotToken { get; set; } = "";
+}

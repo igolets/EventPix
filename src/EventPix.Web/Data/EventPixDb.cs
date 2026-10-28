@@ -14,7 +14,7 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
     public DbSet<LoginCode> LoginCodes => Set<LoginCode>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
-    public DbSet<TelegramLinkCode> TelegramLinkCodes => Set<TelegramLinkCode>();
+    public DbSet<BotLinkCode> BotLinkCodes => Set<BotLinkCode>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -90,7 +90,7 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
             o.HasIndex(x => new { x.SentUtc, x.NotBeforeUtc });
         });
 
-        b.Entity<TelegramLinkCode>(c =>
+        b.Entity<BotLinkCode>(c =>
         {
             c.HasIndex(x => x.CodeHash).IsUnique();
             c.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);

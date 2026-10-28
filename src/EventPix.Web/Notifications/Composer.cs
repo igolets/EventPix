@@ -33,6 +33,6 @@ internal static class Composer
     {
         var lines = groups.Select(g =>
             $"{g.Uploader} added {g.Photos} photo(s) and {g.Videos} video(s) to \"{g.Tab}\".");
-        return string.Join('\n', lines) + $"\n\nOpen: {url}\nUnsubscribe: {unsubscribeUrl}";
+        return string.Join('\n', lines) + $"\n\nOpen: {url}\n\nUnsubscribe: {unsubscribeUrl}";
     }
 }
