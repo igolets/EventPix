@@ -25,9 +25,10 @@ internal sealed partial class TestApp : IDisposable
 
     public TestAppFactory Factory { get; }
 
-    public TestApp(Action<IServiceCollection>? configureServices = null)
+    public TestApp(Action<IServiceCollection>? configureServices = null,
+        Action<IWebHostBuilder>? configureSettings = null)
     {
-        Factory = new TestAppFactory(configureServices);
+        Factory = new TestAppFactory(configureServices, configureSettings);
     }
 
     public HttpClient CreateClient()
@@ -100,10 +101,13 @@ internal sealed partial class TestApp : IDisposable
 internal sealed class TestAppFactory : WebApplicationFactory<Program>
 {
     private readonly Action<IServiceCollection>? _configureServices;
+    private readonly Action<IWebHostBuilder>? _configureSettings;
 
-    public TestAppFactory(Action<IServiceCollection>? configureServices = null)
+    public TestAppFactory(Action<IServiceCollection>? configureServices = null,
+        Action<IWebHostBuilder>? configureSettings = null)
     {
         _configureServices = configureServices;
+        _configureSettings = configureSettings;
     }
 
     public CapturingLoggerProvider Logs { get; } = new();
@@ -112,6 +116,7 @@ internal sealed class TestAppFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        _configureSettings?.Invoke(builder);
         Directory.CreateDirectory(Path.Combine(Root, "data"));
         Directory.CreateDirectory(Path.Combine(Root, "media"));
 

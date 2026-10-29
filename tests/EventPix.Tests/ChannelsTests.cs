@@ -1,5 +1,6 @@
 using EventPix.Web.Configuration;
 using EventPix.Web.Domain;
+using EventPix.Web.Localization;
 using EventPix.Web.Notifications;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -16,18 +17,18 @@ public sealed class ChannelsTests
     public void Composer_Instant_Text_Contains_Summary_Links_And_Unsubscribe()
     {
         var groups = new List<ContentGroup> { new("Ceremony", "Ana", 3, 1) };
-        var text = Composer.Body(groups, Url, Unsub);
+        var text = Composer.Body(MessageLanguage.English, groups, Url, Unsub);
         Assert.Contains("Ana added 3 photo(s) and 1 video(s)", text, StringComparison.Ordinal);
         Assert.Contains(Url, text, StringComparison.Ordinal);
         Assert.Contains(Unsub, text, StringComparison.Ordinal);
-        Assert.Equal("New in Wedding", Composer.Subject("Wedding", groups));
+        Assert.Equal("New in Wedding", Composer.Subject(MessageLanguage.English, "Wedding", groups));
     }
 
     [Fact]
     public void Composer_Separates_The_Links_With_A_Blank_Line()
     {
         var groups = new List<ContentGroup> { new("Ceremony", "Ana", 3, 1) };
-        var text = Composer.Body(groups, Url, Unsub);
+        var text = Composer.Body(MessageLanguage.English, groups, Url, Unsub);
         Assert.Contains(Url + "\n\nUnsubscribe: " + Unsub, text, StringComparison.Ordinal);
     }
 
@@ -35,11 +36,25 @@ public sealed class ChannelsTests
     public void Composer_Digest_Lists_Every_Group_And_Labels_The_Count()
     {
         var groups = new List<ContentGroup> { new("Ceremony", "Ana", 3, 1), new("Party", "Bob", 0, 2) };
-        var text = Composer.Body(groups, Url, Unsub);
+        var text = Composer.Body(MessageLanguage.English, groups, Url, Unsub);
         Assert.Contains("Ana added 3 photo(s) and 1 video(s)", text, StringComparison.Ordinal);
         Assert.Contains("Bob added 0 photo(s) and 2 video(s)", text, StringComparison.Ordinal);
         Assert.Contains(Url, text, StringComparison.Ordinal);
-        Assert.Equal("New in Wedding (2 updates)", Composer.Subject("Wedding", groups));
+        Assert.Equal("New in Wedding (2 updates)", Composer.Subject(MessageLanguage.English, "Wedding", groups));
+    }
+
+    [Fact]
+    public void Composer_Localises_The_Texts_For_The_Configured_Language()
+    {
+        var groups = new List<ContentGroup> { new("Церемония", "Аня", 3, 1) };
+        Assert.Equal("Новое в «Свадьба»", Composer.Subject(MessageLanguage.Russian, "Свадьба", groups));
+        Assert.Equal("Новое в «Свадьба» — обновлений: 2",
+            Composer.Subject(MessageLanguage.Russian, "Свадьба", [.. groups, new ContentGroup("Вечеринка", "Боб", 0, 2)]));
+
+        var text = Composer.Body(MessageLanguage.Russian, groups, Url, Unsub);
+        Assert.Contains("Новые материалы в альбоме «Церемония» от Аня: 3 фото, 1 видео.", text, StringComparison.Ordinal);
+        Assert.Contains("Открыть: " + Url, text, StringComparison.Ordinal);
+        Assert.Contains("Отписаться: " + Unsub, text, StringComparison.Ordinal);
     }
 
     [Fact]

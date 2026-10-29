@@ -3,6 +3,7 @@ using System.Text;
 using EventPix.Web.Configuration;
 using EventPix.Web.Data;
 using EventPix.Web.Domain;
+using EventPix.Web.Localization;
 using EventPix.Web.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -112,15 +113,9 @@ internal sealed class TelegramBotGateway(IOptions<TelegramOptions> options) : IB
 /// hashes. Without a token the gateway idles and so does this worker.
 /// </summary>
 internal sealed class BotLinkWorker(
-    IServiceScopeFactory scopes, IEnumerable<IBotLinkGateway> gateways, TimeProvider clock,
-    ILogger<BotLinkWorker> log) : BackgroundService
+    IServiceScopeFactory scopes, IEnumerable<IBotLinkGateway> gateways, IOptions<EventPixOptions> options,
+    TimeProvider clock, ILogger<BotLinkWorker> log) : BackgroundService
 {
-    private const string InvalidCodeText = "This linking code is not valid or has expired. " +
-        "Open the album, tap Notify me and generate a new link.";
-
-    private const string NotInvitedText = "This album is invite-only and this account is not on the list. " +
-        "Ask the organiser to add your messenger handle, or sign in with your invited e-mail once.";
-
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         // One loop per channel. Last-wins per channel mirrors DI's single-service resolution,
@@ -159,6 +154,7 @@ internal sealed class BotLinkWorker(
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
         var now = clock.GetUtcNow().UtcDateTime;
+        var lang = Messages.Resolve(options.Value.Language);
 
         // Codes are single-use and short-lived; drop the dead ones on every /start.
         await db.BotLinkCodes
@@ -174,15 +170,16 @@ internal sealed class BotLinkWorker(
                  c.ConsumedUtc == null && c.ExpiresUtc > now, ct);
         if (link is not null)
         {
-            await ConfirmSubscriptionAsync(db, gateway, msg.ChatId, link, now, ct);
+            await ConfirmSubscriptionAsync(db, gateway, msg.ChatId, link, lang, now, ct);
             return;
         }
 
-        await ConfirmLoginAsync(db, gateway, msg, hash, now, ct);
+        await ConfirmLoginAsync(db, gateway, msg, hash, lang, now, ct);
     }
 
     private static async Task ConfirmSubscriptionAsync(
-        EventPixDb db, IBotLinkGateway gateway, long chatId, BotLinkCode link, DateTime now, CancellationToken ct)
+        EventPixDb db, IBotLinkGateway gateway, long chatId, BotLinkCode link, MessageLanguage lang,
+        DateTime now, CancellationToken ct)
     {
         link.ConsumedUtc = now;
         var ev = await db.Events.FirstAsync(e => e.Id == link.EventId, ct);
@@ -213,16 +210,15 @@ internal sealed class BotLinkWorker(
         await db.SaveChangesAsync(ct);
 
         // The confirmation names the parameters so a wrong link is caught before anything happens.
-        var scopeName = "all albums";
+        var scopeName = Messages.BotScopeAll(lang);
         if (link.TabId is not null)
         {
             var tab = await db.Tabs.FirstOrDefaultAsync(t => t.Id == link.TabId, ct);
-            scopeName = tab is null ? "a removed album" : $"album \u201c{tab.Name}\u201d";
+            scopeName = tab is null ? Messages.BotScopeRemoved(lang) : Messages.BotScopeTab(lang, tab.Name);
         }
 
-        var cadence = link.Mode == NotifyMode.Digest ? "once a day as a digest" : "as soon as it is added";
-        await gateway.SendAsync(chatId,
-            $"Done! I will tell you about new media in \u201c{ev.Name}\u201d ({scopeName}) {cadence}.", ct);
+        var cadence = Messages.BotCadence(lang, link.Mode);
+        await gateway.SendAsync(chatId, Messages.BotSubscribed(lang, ev.Name, scopeName, cadence), ct);
     }
 
     /// <summary>
@@ -232,7 +228,8 @@ internal sealed class BotLinkWorker(
     /// the polling browser consumes it and gets the session.
     /// </summary>
     private static async Task ConfirmLoginAsync(
-        EventPixDb db, IBotLinkGateway gateway, BotMessage msg, string hash, DateTime now, CancellationToken ct)
+        EventPixDb db, IBotLinkGateway gateway, BotMessage msg, string hash, MessageLanguage lang,
+        DateTime now, CancellationToken ct)
     {
         if (msg.SenderId <= 0)
         {
@@ -244,7 +241,7 @@ internal sealed class BotLinkWorker(
                  r.MemberId == null && r.ConsumedUtc == null && r.ExpiresUtc > now, ct);
         if (request is null)
         {
-            await gateway.SendAsync(msg.ChatId, InvalidCodeText, ct);
+            await gateway.SendAsync(msg.ChatId, Messages.BotInvalidCode(lang), ct);
             return;
         }
 
@@ -262,7 +259,7 @@ internal sealed class BotLinkWorker(
                     i => i.EventId == ev.Id && i.MessengerChannel == gateway.Channel && i.MessengerHandle == handle, ct);
                 if (!invited)
                 {
-                    await gateway.SendAsync(msg.ChatId, NotInvitedText, ct);
+                    await gateway.SendAsync(msg.ChatId, Messages.BotNotInvited(lang), ct);
                     return;
                 }
             }
@@ -287,9 +284,7 @@ internal sealed class BotLinkWorker(
 
         request.MemberId = member.Id;
         await db.SaveChangesAsync(ct);
-        await gateway.SendAsync(msg.ChatId,
-            $"Signed in to \u201c{ev.Name}\u201d as {member.DisplayName}. " +
-            "Return to the browser tab where you started; it will finish by itself.", ct);
+        await gateway.SendAsync(msg.ChatId, Messages.BotSignedIn(lang, ev.Name, member.DisplayName), ct);
     }
 
     private static string DisplayName(BotMessage msg, string? handle)
