@@ -58,4 +58,27 @@ public sealed class CliCommandsTests
         Assert.Equal(1, await CliCommands.RunAsync(app.Factory.Services,
             ["add-invites", Guid.NewGuid().ToString(), $"x-{Guid.NewGuid():N}@example.com"]));
     }
+
+    [Fact]
+    public async Task AddInvites_Preregisters_Messenger_Handles_In_Normalised_Form()
+    {
+        using var app = new TestApp();
+        var owner = $"owner-{Guid.NewGuid():N}@example.com";
+        var (_, eventId) = await app.CreateEventAsync(owner);
+
+        Assert.Equal(0, await CliCommands.RunAsync(app.Factory.Services,
+            ["add-invites", eventId.ToString(), "telegram:@Durov", "max:@grace", "telegram:bad handle!"]));
+
+        await using var scope = app.Factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
+        var invites = await db.Invites.Where(i => i.EventId == eventId && i.MessengerHandle != null).ToListAsync();
+        Assert.Equal(2, invites.Count);   // the malformed handle is skipped
+        Assert.Contains(invites, i => i.MessengerChannel == EventPix.Web.Domain.NotifyChannel.Telegram && i.MessengerHandle == "durov");
+        Assert.Contains(invites, i => i.MessengerChannel == EventPix.Web.Domain.NotifyChannel.Max && i.MessengerHandle == "grace");
+
+        // Re-running skips what is already invited.
+        Assert.Equal(0, await CliCommands.RunAsync(app.Factory.Services,
+            ["add-invites", eventId.ToString(), "telegram:durov"]));
+        Assert.Equal(2, await db.Invites.CountAsync(i => i.EventId == eventId && i.MessengerHandle != null));
+    }
 }

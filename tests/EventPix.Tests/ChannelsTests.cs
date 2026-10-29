@@ -128,7 +128,7 @@ public sealed class ChannelsTests
             return botName + code;
         }
 
-        public Task ReceiveAsync(Func<long, string?, CancellationToken, Task> onMessage, CancellationToken ct)
+        public Task ReceiveAsync(Func<BotMessage, CancellationToken, Task> onMessage, CancellationToken ct)
         {
             return Task.CompletedTask;
         }

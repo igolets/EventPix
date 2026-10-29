@@ -15,6 +15,7 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
     public DbSet<BotLinkCode> BotLinkCodes => Set<BotLinkCode>();
+    public DbSet<LoginRequest> LoginRequests => Set<LoginRequest>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -27,16 +28,23 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
         b.Entity<Member>(m =>
         {
             m.Property(x => x.Email).HasMaxLength(254);
+            m.Property(x => x.MessengerId).HasMaxLength(32);
+            m.Property(x => x.MessengerHandle).HasMaxLength(64);
             m.Property(x => x.DisplayName).HasMaxLength(100);
             m.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
-            m.HasIndex(x => new { x.EventId, x.Email }).IsUnique();
+            m.HasIndex(x => new { x.EventId, x.Email }).IsUnique();   // SQLite: NULLs stay distinct, e-mail stays optional
+            m.HasIndex(x => new { x.EventId, x.MessengerChannel, x.MessengerId }).IsUnique()
+                .HasFilter("[MessengerId] IS NOT NULL");              // one member per messenger identity per event
         });
 
         b.Entity<Invite>(i =>
         {
             i.Property(x => x.Email).HasMaxLength(254);
+            i.Property(x => x.MessengerHandle).HasMaxLength(64);
             i.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
             i.HasIndex(x => new { x.EventId, x.Email }).IsUnique();
+            i.HasIndex(x => new { x.EventId, x.MessengerChannel, x.MessengerHandle }).IsUnique()
+                .HasFilter("[MessengerHandle] IS NOT NULL");
         });
 
         b.Entity<Tab>(t =>
@@ -96,6 +104,14 @@ internal sealed class EventPixDb(DbContextOptions<EventPixDb> options) : DbConte
             c.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
             c.HasOne<Member>().WithMany().HasForeignKey(x => x.MemberId).OnDelete(DeleteBehavior.Cascade);
             c.HasIndex(x => x.ExpiresUtc);
+        });
+
+        b.Entity<LoginRequest>(r =>
+        {
+            r.HasIndex(x => x.CodeHash).IsUnique();
+            r.HasOne<Event>().WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+            r.HasOne<Member>().WithMany().HasForeignKey(x => x.MemberId).OnDelete(DeleteBehavior.SetNull);
+            r.HasIndex(x => x.ExpiresUtc);
         });
     }
 }

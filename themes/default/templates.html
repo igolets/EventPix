@@ -17,6 +17,12 @@
         <input id="code" data-ref="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
         <button class="btn btn-primary" type="submit" data-i18n="viewAlbum">View the album</button>
       </form>
+      <div class="alt-login" data-ref="bot-login" hidden>
+        <button class="btn" data-ref="login-telegram" type="button" hidden data-i18n="loginTelegram">Sign in with Telegram</button>
+        <button class="btn" data-ref="login-max" type="button" hidden data-i18n="loginMax">Sign in with MAX</button>
+        <a class="btn btn-primary" data-ref="bot-open" hidden rel="noreferrer" target="_blank"></a>
+      </div>
+      <p class="muted" data-ref="bot-status" role="status" hidden></p>
       <p class="error" data-ref="message" role="alert"></p>
       <button class="btn btn-ghost" data-ref="cancel" type="button" hidden data-i18n="back">Back</button>
     </section>
@@ -266,7 +272,7 @@
   "guestUploads": "Guests may upload",
   "invites": "Invites",
   "invitesTitle": "Invites",
-  "invitesEmailLabel": "E-mail",
+  "invitesEmailLabel": "E-mail or @handle",
   "invitesAdd": "Invite",
   "invitesEmpty": "No invites yet.",
   "invitesJoined": "joined",
@@ -287,6 +293,13 @@
   "emailLabel": "Ваш e-mail",
   "sendCode": "Отправить код",
   "codeLabel": "Введите 6-значный код из письма",
+  "loginTelegram": "Войти через Telegram",
+  "loginMax": "Войти через MAX",
+  "botOpenTelegram": "Открыть Telegram",
+  "botOpenMax": "Открыть MAX",
+  "botWaiting": "Нажмите Start в чате — эта страница выполнит вход автоматически.",
+  "botExpired": "Срок действия ссылки для входа истёк. Нажмите кнопку ещё раз, чтобы получить новую.",
+  "botFail": "Не удалось начать вход через бот.",
   "viewAlbum": "Открыть альбом",
   "upload": "Добавить фото и видео",
   "notifyMe": "Оповещать меня",
@@ -353,7 +366,7 @@
   "guestUploads": "Гости могут загружать",
   "invites": "Приглашения",
   "invitesTitle": "Приглашения",
-  "invitesEmailLabel": "E-mail",
+  "invitesEmailLabel": "E-mail или @handle",
   "invitesAdd": "Пригласить",
   "invitesEmpty": "Приглашений пока нет.",
   "invitesJoined": "присоединился",

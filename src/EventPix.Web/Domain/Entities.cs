@@ -25,23 +25,40 @@ internal sealed class Event
     public DateTime CreatedUtc { get; set; }
 }
 
+/// <summary>
+/// One participant identity. Either an e-mail member (Email set) or a messenger member signed in
+/// via a bot (MessengerChannel + MessengerId set). The same person may exist as several members;
+/// uploads and stars always attribute to the identity that was actually signed in.
+/// </summary>
 internal sealed class Member
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid EventId { get; set; }
-    public required string Email { get; set; }          // normalised, lower-case
+    public string? Email { get; set; }                  // normalised, lower-case; null for messenger members
+    public NotifyChannel? MessengerChannel { get; set; }
+    /// <summary>The messenger platform's stable user id (as string), proven by the bot.</summary>
+    public string? MessengerId { get; set; }
+    /// <summary>@handle at sign-in time (informational; identity is MessengerId — handles can change).</summary>
+    public string? MessengerHandle { get; set; }
     public required string DisplayName { get; set; }
     public MemberRole Role { get; set; }
     public DateTime CreatedUtc { get; set; }
     public DateTime? LastSeenUtc { get; set; }
 }
 
-/// <summary>A pre-registered e-mail for InviteOnly events. Becomes a Member on first sign-in.</summary>
+/// <summary>
+/// A pre-registered identity for InviteOnly events; becomes a Member on first sign-in. Either an
+/// e-mail (Email set) or a messenger handle (MessengerChannel + MessengerHandle set), matched by the
+/// bot on the member's first Start.
+/// </summary>
 internal sealed class Invite
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
     public Guid EventId { get; set; }
-    public required string Email { get; set; }          // normalised, lower-case
+    public string? Email { get; set; }                  // normalised, lower-case; null for messenger invites
+    public NotifyChannel? MessengerChannel { get; set; }
+    /// <summary>Normalised handle (lower-case, no @); the member must have the same handle at sign-in.</summary>
+    public string? MessengerHandle { get; set; }
     public DateTime CreatedUtc { get; set; }
 }
 
@@ -138,6 +155,26 @@ internal sealed class OutboxMessage
     public int Attempts { get; set; }
     public DateTime? SentUtc { get; set; }
     public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// One pending bot sign-in (Telegram/MAX). The browser mints it, the member confirms it by pressing
+/// Start in the bot with the deep-link payload, and the polling browser exchanges the confirmation
+/// for a session. The raw code is shown once in the deep link; only its hash is stored.
+/// </summary>
+internal sealed class LoginRequest
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    /// <summary>Which bot confirms the sign-in.</summary>
+    public NotifyChannel Channel { get; set; }
+    /// <summary>SHA-256 (hex) of the deep-link payload.</summary>
+    public required string CodeHash { get; set; }
+    public Guid EventId { get; set; }
+    /// <summary>Set when the bot proved the chat belongs to a member; the poll then consumes the request.</summary>
+    public Guid? MemberId { get; set; }
+    public DateTime CreatedUtc { get; set; }
+    public DateTime ExpiresUtc { get; set; }
+    public DateTime? ConsumedUtc { get; set; }
 }
 
 /// <summary>Single-use bot linking code (Telegram/MAX). The raw code is shown once as a deep link; only its hash is stored.</summary>

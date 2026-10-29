@@ -121,17 +121,27 @@ namespace EventPix.Web.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasMaxLength(254)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("EventId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("MessengerChannel")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MessengerHandle")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EventId", "Email")
                         .IsUnique();
+
+                    b.HasIndex("EventId", "MessengerChannel", "MessengerHandle")
+                        .IsUnique()
+                        .HasFilter("[MessengerHandle] IS NOT NULL");
 
                     b.ToTable("Invites");
                 });
@@ -170,6 +180,48 @@ namespace EventPix.Web.Migrations
                     b.HasIndex("EventId", "Email", "CreatedUtc");
 
                     b.ToTable("LoginCodes");
+                });
+
+            modelBuilder.Entity("EventPix.Web.Domain.LoginRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ConsumedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("ExpiresUtc");
+
+                    b.HasIndex("MemberId");
+
+                    b.ToTable("LoginRequests");
                 });
 
             modelBuilder.Entity("EventPix.Web.Domain.MediaItem", b =>
@@ -261,7 +313,6 @@ namespace EventPix.Web.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasMaxLength(254)
                         .HasColumnType("TEXT");
 
@@ -271,6 +322,17 @@ namespace EventPix.Web.Migrations
                     b.Property<DateTime?>("LastSeenUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("MessengerChannel")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MessengerHandle")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MessengerId")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Role")
                         .HasColumnType("INTEGER");
 
@@ -278,6 +340,10 @@ namespace EventPix.Web.Migrations
 
                     b.HasIndex("EventId", "Email")
                         .IsUnique();
+
+                    b.HasIndex("EventId", "MessengerChannel", "MessengerId")
+                        .IsUnique()
+                        .HasFilter("[MessengerId] IS NOT NULL");
 
                     b.ToTable("Members");
                 });
@@ -463,6 +529,20 @@ namespace EventPix.Web.Migrations
                         .HasForeignKey("EventId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("EventPix.Web.Domain.LoginRequest", b =>
+                {
+                    b.HasOne("EventPix.Web.Domain.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("EventPix.Web.Domain.Member", null)
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("EventPix.Web.Domain.MediaItem", b =>

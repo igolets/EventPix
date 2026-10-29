@@ -35,6 +35,8 @@ label { font-size: .9rem; color: var(--muted); }
 /* login */
 .login { min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; }
 .card { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px); padding: 2rem; box-shadow: var(--shadow); }
+.alt-login { display: grid; gap: .5rem; margin-top: 1.25rem; }
+.login .muted[role="status"] { margin: .75rem 0 0; }
 
 /* shell */
 .shell { max-width: 1400px; margin: 0 auto; padding: 0 1rem 4rem; }

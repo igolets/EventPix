@@ -32,6 +32,12 @@ internal static class SubscriptionEndpoints
                 return Results.Json(new { error = "bot_use_link" }, statusCode: 400);
             }
 
+            if (me!.Email is null)
+            {
+                // Signed in via a bot: there is no proven e-mail address to deliver to.
+                return Results.Json(new { error = "email_unavailable" }, statusCode: 400);
+            }
+
             if (dto.TabId is not null && !await db.Tabs.AnyAsync(t => t.Id == dto.TabId && t.EventId == ev.Id, ct))
             {
                 return Results.NotFound();

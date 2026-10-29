@@ -12,7 +12,8 @@ namespace EventPix.Web.Cli;
 ///   create-event "Name" owner@example.com [--invite-only]
 ///   list-events
 ///   rotate-token {eventId}      (invalidates the old link, prints the new one)
-///   add-invites {eventId} email...   (pre-register e-mails for invite-only events)
+///   add-invites {eventId} email...   (pre-register e-mails for invite-only events;
+///                                     telegram:@handle / max:@handle add messenger invites)
 /// </summary>
 internal static class CliCommands
 {
@@ -74,19 +75,44 @@ internal static class CliCommands
             case "add-invites":
                 {
                     if (args.Length < 3 || !Guid.TryParse(args[1], out var evId))
-                    { await Console.Error.WriteLineAsync("Usage: add-invites {eventId} email1 [email2 ...]"); return 2; }
+                    { await Console.Error.WriteLineAsync("Usage: add-invites {eventId} email1 [email2 | telegram:@user | max:@user ...]"); return 2; }
                     var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == evId);
                     if (ev is null) { await Console.Error.WriteLineAsync("Not found."); return 1; }
                     var now = DateTime.UtcNow;
                     var added = 0;
                     foreach (var raw in args.Skip(2))
                     {
-                        var email = Tokens.NormalizeEmail(raw);
-                        if (email is null ||
-                            await db.Members.AnyAsync(m => m.EventId == ev.Id && m.Email == email) ||
-                            await db.Invites.AnyAsync(i => i.EventId == ev.Id && i.Email == email))
-                        { await Console.Error.WriteLineAsync($"Skipped '{raw}' (invalid, member, or already invited)."); continue; }
-                        db.Invites.Add(new Invite { EventId = ev.Id, Email = email, CreatedUtc = now });
+                        // "telegram:@durov" / "max:@durov" pre-register a messenger invite; the bot
+                        // matches the handle when that account first presses Start.
+                        var colon = raw.IndexOf(':');
+                        NotifyChannel? channel = null;
+                        if (colon > 0 && Enum.TryParse<NotifyChannel>(raw[..colon], ignoreCase: true, out var parsed) &&
+                            parsed is NotifyChannel.Telegram or NotifyChannel.Max)
+                        {
+                            channel = parsed;
+                        }
+
+                        Invite invite;
+                        if (channel is not null)
+                        {
+                            var handle = Tokens.NormalizeHandle(raw[(colon + 1)..]);
+                            if (handle is null ||
+                                await db.Members.AnyAsync(m => m.EventId == ev.Id && m.MessengerChannel == channel && m.MessengerHandle == handle) ||
+                                await db.Invites.AnyAsync(i => i.EventId == ev.Id && i.MessengerChannel == channel && i.MessengerHandle == handle))
+                            { await Console.Error.WriteLineAsync($"Skipped '{raw}' (invalid, member, or already invited)."); continue; }
+                            invite = new Invite { EventId = ev.Id, MessengerChannel = channel, MessengerHandle = handle, CreatedUtc = now };
+                        }
+                        else
+                        {
+                            var email = Tokens.NormalizeEmail(raw);
+                            if (email is null ||
+                                await db.Members.AnyAsync(m => m.EventId == ev.Id && m.Email == email) ||
+                                await db.Invites.AnyAsync(i => i.EventId == ev.Id && i.Email == email))
+                            { await Console.Error.WriteLineAsync($"Skipped '{raw}' (invalid, member, or already invited)."); continue; }
+                            invite = new Invite { EventId = ev.Id, Email = email, CreatedUtc = now };
+                        }
+
+                        db.Invites.Add(invite);
                         added++;
                     }
 

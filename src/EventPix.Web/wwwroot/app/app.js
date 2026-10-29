@@ -15,6 +15,8 @@ const state = {
   guest: false,          // browsing an open album without a session (view-only)
   afterLogin: null,      // guest clicked upload/subscriptions: resume it right after the OTP round-trip
   info: null,
+  me: null,              // /me payload once signed in (null e-mail = signed in via a bot)
+  loginGeneration: 0,    // bumped on every login screen render: stale bot-poll loops detect abandonment
 };
 let templates;
 let strings = {};
@@ -28,6 +30,13 @@ const DEFAULT_STRINGS = {
   emailLabel: 'Your e-mail',
   sendCode: 'Send me a code',
   codeLabel: 'Enter the 6-digit code we e-mailed you',
+  loginTelegram: 'Sign in with Telegram',
+  loginMax: 'Sign in with MAX',
+  botOpenTelegram: 'Open in Telegram',
+  botOpenMax: 'Open in MAX',
+  botWaiting: 'Press Start in the chat — this page signs you in automatically.',
+  botExpired: 'The sign-in link has expired. Tap the button again for a new one.',
+  botFail: 'Could not start the bot sign-in.',
   viewAlbum: 'View the album',
   upload: 'Add photos & videos',
   notifyMe: 'Notify me',
@@ -84,7 +93,7 @@ const DEFAULT_STRINGS = {
   guestUploads: 'Guests may upload',
   invites: 'Invites',
   invitesTitle: 'Invites',
-  invitesEmailLabel: 'E-mail',
+  invitesEmailLabel: 'E-mail or @handle',
   invitesAdd: 'Invite',
   invitesEmpty: 'No invites yet.',
   invitesJoined: 'joined',
@@ -151,11 +160,68 @@ function showLogin(info) {
   const cancel = ref(view, 'cancel');
   if (cancel && state.guest) {   // the login was opened over a browsable gallery: allow going back
     cancel.hidden = false;
-    cancel.addEventListener('click', () => void showGallery(state.info));
+    cancel.addEventListener('click', () => { stopBotPoll(); void showGallery(state.info); });
+  }
+
+  // Bot sign-in: mint a deep link, the member presses Start in the chat, the browser polls until
+  // the request is confirmed and then receives the session. Only buttons for configured bots show.
+  const botStatus = ref(view, 'bot-status'), botOpen = ref(view, 'bot-open');
+  const botLogin = ref(view, 'bot-login');
+  if (botLogin && (info.telegram || info.max)) {
+    botLogin.hidden = false;
+    for (const [cap, key] of [['telegram', 'login-telegram'], ['max', 'login-max']]) {
+      const btn = ref(view, key);
+      if (btn && info[cap]) {
+        btn.hidden = false;
+        btn.addEventListener('click', () => void startBotLogin(cap));
+      }
+    }
+  }
+
+  function stopBotPoll() {
+    state.loginGeneration++;   // any running poll loop sees the mismatch and gives up silently
+  }
+
+  async function startBotLogin(channel) {
+    stopBotPoll();
+    const mine = (state.loginGeneration = (state.loginGeneration ?? 0) + 1);
+    msg.textContent = '';
+    botStatus.hidden = true;
+    botOpen.hidden = true;
+    const res = await api('/auth/bot/request', { method: 'POST', ...jsonBody({ channel: channel === 'max' ? 'Max' : 'Telegram' }) });
+    if (!res.ok) {
+      botStatus.hidden = false;
+      botStatus.textContent = res.status === 501 ? t(channel === 'max' ? 'subsMaxOff' : 'subsTelegramOff') : t('botFail');
+      return;
+    }
+
+    const { url, expiresUtc } = await res.json();
+    const code = new URL(url).searchParams.get('start') ?? '';
+    botOpen.href = url;
+    botOpen.textContent = t(channel === 'max' ? 'botOpenMax' : 'botOpenTelegram');
+    botOpen.hidden = false;
+    botStatus.hidden = false;
+    botStatus.textContent = t('botWaiting');
+
+    const deadline = Date.parse(expiresUtc) || 0;
+    for (;;) {
+      await sleep(3000);
+      if (mine !== state.loginGeneration) return;   // the user went somewhere else
+      if (Date.now() > deadline) break;
+      const poll = await api('/auth/bot/poll', { method: 'POST', ...jsonBody({ code }) });
+      if (poll.status === 204) return start();      // confirmed in the chat: session set, enter the album
+      if (!poll.ok) break;                          // rate-limited or the request vanished: stop hammering
+    }
+
+    if (mine === state.loginGeneration) {
+      botOpen.hidden = true;
+      botStatus.textContent = t('botExpired');
+    }
   }
 
   emailForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    stopBotPoll();
     email = ref(view, 'email').value.trim();
     msg.textContent = '';
     const res = await api('/auth/request', { method: 'POST', ...jsonBody({ email }) });
@@ -408,7 +474,7 @@ async function openInvites() {
     for (const i of invites) {
       const row = tpl('invite-row');
       row.dataset.joined = String(i.joined);
-      text(row, 'label', i.email);
+      text(row, 'label', i.email ?? (i.handle ? '@' + i.handle : '?'));
       text(row, 'state', t(i.joined ? 'invitesJoined' : 'invitesPending'));
       ref(row, 'remove').addEventListener('click', async () => {
         const res = await api(`/invites/${i.id}`, { method: 'DELETE' });
@@ -418,11 +484,17 @@ async function openInvites() {
     }
   };
 
+  // The single input takes an e-mail or a messenger invite in the "telegram:@user" / "max:@user" form.
   ref(dialog, 'form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = ref(dialog, 'email').value.trim();
-    if (!email) return;
-    const res = await api('/invites', { method: 'POST', ...jsonBody({ email }) });
+    const raw = ref(dialog, 'email').value.trim();
+    if (!raw) return;
+    const sep = raw.indexOf(':');
+    const kind = sep > 0 ? raw.slice(0, sep).toLowerCase() : null;
+    const payload = kind === 'telegram' || kind === 'max'
+      ? { channel: kind === 'max' ? 'Max' : 'Telegram', handle: raw.slice(sep + 1).trim() }
+      : { email: raw };
+    const res = await api('/invites', { method: 'POST', ...jsonBody(payload) });
     if (!res.ok) { message.textContent = t('inviteFail'); return; }
     ref(dialog, 'email').value = '';
     await load();
@@ -801,12 +873,16 @@ async function openSubscriptions() {
   const dialog = tpl('subscriptions');
   const list = ref(dialog, 'list');
   const message = ref(dialog, 'message');
-  // Bot channels the server has no token for are hidden (capabilities come from /public).
+  // Bot channels the server has no token for are hidden (capabilities come from /public); the e-mail
+  // channel is hidden for bot sign-ins, which carry no proven e-mail address.
   if (!state.info?.telegram) {
     ref(dialog, 'channel').querySelector('option[value="Telegram"]')?.remove();
   }
   if (!state.info?.max) {
     ref(dialog, 'channel').querySelector('option[value="Max"]')?.remove();
+  }
+  if (state.me && !state.me.email) {
+    ref(dialog, 'channel').querySelector('option[value="Email"]')?.remove();
   }
   const close = () => { document.removeEventListener('keydown', onKey); dialog.remove(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
@@ -900,11 +976,12 @@ async function start() {
   const info = await pub.json();
   const me = await api('/me');
   state.isOwner = false;
+  state.me = me.ok ? await me.json() : null;
   state.guest = !me.ok && !info.inviteOnly;   // open albums: browse without signing in
   if (!me.ok) {
     if (info.inviteOnly) return showLogin(info);   // invite-only keeps the login wall for viewing
   } else {
-    state.isOwner = (await me.json()).isOwner === true;
+    state.isOwner = state.me.isOwner === true;
   }
   return showGallery(info);
 }
