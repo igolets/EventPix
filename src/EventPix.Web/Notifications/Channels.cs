@@ -82,3 +82,17 @@ internal sealed class TelegramChannel(IOptions<TelegramOptions> options) : INoti
         await bot.SendMessage(long.Parse(address), body, cancellationToken: ct);
     }
 }
+
+/// <summary>MAX delivery rides the same gateway the link worker polls, so tokens are checked in one place.</summary>
+internal sealed class MaxChannel(IEnumerable<IBotLinkGateway> gateways) : INotificationChannel
+{
+    private readonly IBotLinkGateway _gateway = gateways.LastOrDefault(g => g.Channel == NotifyChannel.Max)
+        ?? throw new InvalidOperationException("No MAX bot gateway is registered.");
+
+    public NotifyChannel Channel => NotifyChannel.Max;
+
+    public Task SendAsync(string address, string subject, string body, CancellationToken ct)
+    {
+        return _gateway.SendAsync(long.Parse(address), body, ct);
+    }
+}

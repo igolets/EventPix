@@ -4,7 +4,7 @@ internal enum MemberRole { Guest = 0, Owner = 1 }
 internal enum TabKind { Section = 0, Author = 1 }
 internal enum MediaKind { Photo = 0, Video = 1 }
 internal enum MediaStatus { Processing = 0, Ready = 1, Failed = 2 }
-internal enum NotifyChannel { Email = 0, Telegram = 1 }
+internal enum NotifyChannel { Email = 0, Telegram = 1, Max = 2 }
 internal enum NotifyMode { Instant = 0, Digest = 1 }
 
 /// <summary>One shared album (a wedding, a graduation...). Reached via a secret URL token.</summary>
@@ -107,7 +107,7 @@ internal sealed class Subscription
     public Guid EventId { get; set; }
     public Guid MemberId { get; set; }
     public NotifyChannel Channel { get; set; }
-    /// <summary>Email address or Telegram chat id.</summary>
+    /// <summary>Email address, or the bot chat id for Telegram/MAX.</summary>
     public required string Address { get; set; }
     /// <summary>null = everything in the event.</summary>
     public Guid? TabId { get; set; }
@@ -140,10 +140,12 @@ internal sealed class OutboxMessage
     public DateTime CreatedUtc { get; set; }
 }
 
-/// <summary>Single-use Telegram linking code. The raw code is shown once as a t.me deep link; only its hash is stored.</summary>
-internal sealed class TelegramLinkCode
+/// <summary>Single-use bot linking code (Telegram/MAX). The raw code is shown once as a deep link; only its hash is stored.</summary>
+internal sealed class BotLinkCode
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
+    /// <summary>Which bot the code belongs to; consuming it confirms a subscription on the same channel.</summary>
+    public NotifyChannel Channel { get; set; }
     /// <summary>SHA-256 (hex) of the deep-link payload.</summary>
     public required string CodeHash { get; set; }
     public Guid EventId { get; set; }

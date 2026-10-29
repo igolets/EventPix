@@ -30,6 +30,7 @@ Directory.CreateDirectory(dataPath);
 builder.Services.Configure<EventPixOptions>(cfg);
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.Section));
 builder.Services.Configure<TelegramOptions>(builder.Configuration.GetSection(TelegramOptions.Section));
+builder.Services.Configure<MaxOptions>(builder.Configuration.GetSection(MaxOptions.Section));
 builder.WebHost.ConfigureKestrel(k => { k.AddServerHeader = false; k.Limits.MaxRequestBodySize = opts.MaxUploadBytes; });
 builder.Services.Configure<FormOptions>(f => f.MultipartBodyLengthLimit = opts.MaxUploadBytes);
 builder.Services.ConfigureHttpJsonOptions(j => j.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
@@ -55,12 +56,13 @@ builder.Services.AddSingleton<IMediaStorage, FileSystemMediaStorage>();
 builder.Services.AddSingleton<MediaQueue>();
 builder.Services.AddSingleton<VideoFrameExtractor>();
 builder.Services.AddSingleton<VideoProbe>();
-builder.Services.AddSingleton<ITelegramBotGateway, TelegramBotGateway>();
+builder.Services.AddSingleton<IBotLinkGateway, TelegramBotGateway>();
+builder.Services.AddSingleton<IBotLinkGateway, MaxBotGateway>();
 builder.Services.AddSingleton<IAntivirusScanner, NoAntivirusScanner>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddHostedService<MediaProcessingWorker>();
 builder.Services.AddHostedService<NotificationWorker>();
-builder.Services.AddHostedService<TelegramUpdateWorker>();
+builder.Services.AddHostedService<BotLinkWorker>();
 builder.Services.AddTransient<DbReadyHealthCheck>();
 builder.Services.AddHealthChecks().AddCheck<DbReadyHealthCheck>("database", tags: ["ready"]);
 
@@ -80,6 +82,7 @@ else
 
 builder.Services.AddSingleton<INotificationChannel, EmailChannel>();
 builder.Services.AddSingleton<INotificationChannel, TelegramChannel>();
+builder.Services.AddSingleton<INotificationChannel, MaxChannel>();
 
 // ---- authentication: cookie session issued after the e-mail code is verified --------------------
 builder.Services.AddAuthentication("Cookies").AddCookie("Cookies", o =>

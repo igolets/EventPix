@@ -28,8 +28,8 @@ internal static class SubscriptionEndpoints
             var (ev, me) = h.GetScope();
             if (dto.Channel != NotifyChannel.Email)
             {
-                // Telegram subscriptions can only be confirmed by the bot proving the chat id.
-                return Results.Json(new { error = "telegram_use_link" }, statusCode: 400);
+                // Bot subscriptions (Telegram/MAX) can only be confirmed by the bot proving the chat id.
+                return Results.Json(new { error = "bot_use_link" }, statusCode: 400);
             }
 
             if (dto.TabId is not null && !await db.Tabs.AnyAsync(t => t.Id == dto.TabId && t.EventId == ev.Id, ct))
@@ -58,15 +58,25 @@ internal static class SubscriptionEndpoints
             return Results.Ok(new { sub.Id });
         }).RequireMember();
 
-        // Issues a single-use, 15-minute code the user sends to the bot as a /start deep link.
-        g.MapGet("/subscriptions/telegram-link", async (
-            HttpContext h, EventPixDb db, ITelegramBotGateway telegram, TimeProvider clock, CancellationToken ct) =>
+        // Issues a single-use, 15-minute code the user sends to the bot via its deep link
+        // (?channel=Telegram|Max). Consuming it is what confirms the subscription.
+        g.MapGet("/subscriptions/bot-link", async (
+            HttpContext h, EventPixDb db, IEnumerable<IBotLinkGateway> gateways, TimeProvider clock, CancellationToken ct) =>
         {
             var (ev, me) = h.GetScope();
-            var botName = await telegram.GetBotUsernameAsync(ct);
+            var channel = Enum.TryParse<NotifyChannel>(h.Request.Query["channel"], ignoreCase: true, out var parsed)
+                ? parsed : NotifyChannel.Telegram;
+            // Last-wins mirrors DI single-service resolution, so a later gateway overrides a bot.
+            var gateway = gateways.LastOrDefault(x => x.Channel == channel);
+            if (gateway is null)
+            {
+                return Results.Json(new { error = "unknown_channel" }, statusCode: 400);
+            }
+
+            var botName = await gateway.GetBotUsernameAsync(ct);
             if (string.IsNullOrEmpty(botName))
             {
-                return Results.Json(new { error = "telegram_not_configured" }, statusCode: 501);
+                return Results.Json(new { error = "bot_not_configured" }, statusCode: 501);
             }
 
             Guid? tabId = null;
@@ -85,13 +95,14 @@ internal static class SubscriptionEndpoints
 
             var now = clock.GetUtcNow().UtcDateTime;
             var expires = now.AddMinutes(15);
-            await db.TelegramLinkCodes
+            await db.BotLinkCodes
                 .Where(c => c.ExpiresUtc < now || c.ConsumedUtc != null).ExecuteDeleteAsync(ct);
 
             var code = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16));
-            db.TelegramLinkCodes.Add(new TelegramLinkCode
+            db.BotLinkCodes.Add(new BotLinkCode
             {
-                CodeHash = TelegramUpdateWorker.CodeHash(code),
+                CodeHash = BotLinkWorker.CodeHash(code),
+                Channel = channel,
                 EventId = ev.Id,
                 MemberId = me!.Id,
                 TabId = tabId,
@@ -101,8 +112,7 @@ internal static class SubscriptionEndpoints
             });
             await db.SaveChangesAsync(ct);
 
-            var url = $"https://t.me/{botName}?start={code}";
-            return Results.Ok(new { url, expiresUtc = expires });
+            return Results.Ok(new { url = gateway.BuildLinkUrl(botName, code), expiresUtc = expires });
         }).RequireMember();
 
         g.MapDelete("/subscriptions/{id:guid}", async (Guid id, HttpContext h, EventPixDb db, CancellationToken ct) =>

@@ -791,7 +791,8 @@ function tabName(id) {
 }
 
 function subLabel(s) {
-  const channel = s.channel === 'Email' ? t('subsEmail') : t('subsTelegram');
+  const channel = s.channel === 'Email' ? t('subsEmail')
+    : s.channel === 'Max' ? t('subsMax') : t('subsTelegram');
   const mode = s.mode === 'Digest' ? t('subsDigest') : t('subsInstant');
   return channel + ' · ' + tabName(s.tabId) + ' · ' + mode;
 }
@@ -800,8 +801,12 @@ async function openSubscriptions() {
   const dialog = tpl('subscriptions');
   const list = ref(dialog, 'list');
   const message = ref(dialog, 'message');
-  if (!state.info?.telegram) {   // bot unconfigured: the server said so via /public, so don't offer the channel
+  // Bot channels the server has no token for are hidden (capabilities come from /public).
+  if (!state.info?.telegram) {
     ref(dialog, 'channel').querySelector('option[value="Telegram"]')?.remove();
+  }
+  if (!state.info?.max) {
+    ref(dialog, 'channel').querySelector('option[value="Max"]')?.remove();
   }
   const close = () => { document.removeEventListener('keydown', onKey); dialog.remove(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
@@ -830,17 +835,18 @@ async function openSubscriptions() {
     const channel = ref(dialog, 'channel').value;
     const tabId = ref(dialog, 'tab').value || null;
     const mode = ref(dialog, 'mode').value;
-    if (channel === 'Telegram') {
-      const query = tabId ? `?tab=${encodeURIComponent(tabId)}&mode=${encodeURIComponent(mode)}` : `?mode=${encodeURIComponent(mode)}`;
-      const res = await api(`/subscriptions/telegram-link${query}`);
-      if (!res.ok) { message.textContent = t('subsTelegramOff'); return; }
+    if (channel === 'Telegram' || channel === 'Max') {
+      const params = new URLSearchParams({ channel, mode });
+      if (tabId) params.set('tab', tabId);
+      const res = await api(`/subscriptions/bot-link?${params}`);
+      if (!res.ok) { message.textContent = t(channel === 'Max' ? 'subsMaxOff' : 'subsTelegramOff'); return; }
       const link = (await res.json()).url;
       const a = document.createElement('a');
       a.href = link;
       a.rel = 'noreferrer';
       a.textContent = link;
       const hint = document.createElement('span');
-      hint.textContent = t('subsTelegramHint') + ' ';
+      hint.textContent = t(channel === 'Max' ? 'subsMaxHint' : 'subsTelegramHint') + ' ';
       message.append(hint, a);
       return;
     }

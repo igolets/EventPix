@@ -36,16 +36,16 @@ public sealed class SubscriptionTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
             new { Channel = "Email", TabId = (Guid?)null, Mode = "Digest" })).StatusCode);
 
-        // Telegram chat ids can only be proven by the bot: the API refuses and points at the link flow.
+        // Bot chat ids can only be proven by the bot: the API refuses and points at the link flow.
         var telegram = await client.PutAsJsonAsync(U($"/api/e/{token}/subscriptions"),
             new { Channel = "Telegram", TabId = (Guid?)null, Mode = "Instant" });
         Assert.Equal(HttpStatusCode.BadRequest, telegram.StatusCode);
         var err = await telegram.Content.ReadFromJsonAsync<ErrorDto>();
-        Assert.Equal("telegram_use_link", err!.Error);
+        Assert.Equal("bot_use_link", err!.Error);
 
         // No bot token configured: the deep-link endpoint says so without leaking anything.
         Assert.Equal(HttpStatusCode.NotImplemented,
-            (await client.GetAsync(U($"/api/e/{token}/subscriptions/telegram-link"))).StatusCode);
+            (await client.GetAsync(U($"/api/e/{token}/subscriptions/bot-link"))).StatusCode);
 
         var list = await client.GetFromJsonAsync<SubDto[]>(U($"/api/e/{token}/subscriptions"), _json);
         var sub = Assert.Single(list!);
@@ -95,19 +95,27 @@ public sealed class SubscriptionTests : IDisposable
     }
 
     [Fact]
-    public async Task Public_Reports_Whether_The_Telegram_Bot_Is_Configured()
+    public async Task Public_Reports_Whether_A_Bot_Is_Configured()
     {
         var owner = $"owner-{Guid.NewGuid():N}@example.com";
         var (token, _) = await _app.CreateEventAsync(owner);
 
-        // Default host has no bot token: the UI hides the Telegram channel.
+        // Default host has no bot token: the UI hides the bot channels.
         var off = await _app.CreateClient().GetFromJsonAsync<PublicDto>(U($"/api/e/{token}/public"));
         Assert.False(off!.Telegram);
+        Assert.False(off.Max);
 
-        using var configured = _app.Factory.WithWebHostBuilder(
+        using var telegramOn = _app.Factory.WithWebHostBuilder(
             b => b.UseSetting($"{TelegramOptions.Section}:BotToken", "test-token"));
-        var on = await configured.CreateClient().GetFromJsonAsync<PublicDto>(U($"/api/e/{token}/public"));
-        Assert.True(on!.Telegram);
+        var t = await telegramOn.CreateClient().GetFromJsonAsync<PublicDto>(U($"/api/e/{token}/public"));
+        Assert.True(t!.Telegram);
+        Assert.False(t.Max);
+
+        using var maxOn = _app.Factory.WithWebHostBuilder(
+            b => b.UseSetting($"{MaxOptions.Section}:BotToken", "test-token"));
+        var m = await maxOn.CreateClient().GetFromJsonAsync<PublicDto>(U($"/api/e/{token}/public"));
+        Assert.False(m!.Telegram);
+        Assert.True(m.Max);
     }
 
     private static Uri U(string path)
@@ -116,7 +124,7 @@ public sealed class SubscriptionTests : IDisposable
     }
 
     [SuppressMessage("Performance", "CA1812", Justification = "Instantiated by the JSON serializer.")]
-    internal sealed record PublicDto(string Name, string Description, bool InviteOnly, bool Telegram);
+    internal sealed record PublicDto(string Name, string Description, bool InviteOnly, bool Telegram, bool Max);
 
     [SuppressMessage("Performance", "CA1812", Justification = "Instantiated by the JSON serializer.")]
     internal sealed record IdDto(Guid Id);
