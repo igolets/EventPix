@@ -104,6 +104,10 @@ builder.Services.AddRateLimiter(r =>
     static string Ip(HttpContext c) => c.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     r.AddPolicy("auth", c => RateLimitPartition.GetFixedWindowLimiter(Ip(c),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(10) }));
+    // Bot sign-in polls every few seconds while the member confirms in the chat; strict like "auth"
+    // but sized for the loop so it cannot be used to brute-force codes (they die in 15 minutes anyway).
+    r.AddPolicy("bot-poll", c => RateLimitPartition.GetFixedWindowLimiter(Ip(c),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1) }));
     r.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(c => RateLimitPartition.GetFixedWindowLimiter(
         Ip(c), _ => new FixedWindowRateLimiterOptions { PermitLimit = 3000, Window = TimeSpan.FromMinutes(1) }));
 });

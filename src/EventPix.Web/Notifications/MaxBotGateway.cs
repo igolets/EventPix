@@ -66,7 +66,7 @@ internal sealed class MaxBotGateway : IBotLinkGateway, IDisposable
         return $"https://max.ru/{botName}?start={code}";
     }
 
-    public async Task ReceiveAsync(Func<long, string?, CancellationToken, Task> onMessage, CancellationToken ct)
+    public async Task ReceiveAsync(Func<BotMessage, CancellationToken, Task> onMessage, CancellationToken ct)
     {
         if (Token is null)
         {
@@ -90,7 +90,7 @@ internal sealed class MaxBotGateway : IBotLinkGateway, IDisposable
     }
 
     private async Task<Updates?> PollAsync(
-        Func<long, string?, CancellationToken, Task> onMessage, long? marker, CancellationToken ct)
+        Func<BotMessage, CancellationToken, Task> onMessage, long? marker, CancellationToken ct)
     {
         var query = "updates?types=bot_started&types=message_created&timeout=30";
         if (marker is not null)
@@ -106,27 +106,42 @@ internal sealed class MaxBotGateway : IBotLinkGateway, IDisposable
 
         foreach (var update in page?.Items ?? [])
         {
-            var (chatId, text) = ToMessage(update);
-            if (chatId != 0)
+            var msg = ToMessage(update);
+            if (msg.ChatId != 0)
             {
-                await onMessage(chatId, text, ct);
+                await onMessage(msg, ct);
             }
         }
 
         return page;
     }
 
-    /// <summary>Normalises updates to the same (chat, "/start …") shape the Telegram gateway yields.
+    /// <summary>Normalises updates to the same shape the Telegram gateway yields (chat, "/start …", sender).
     /// Internal for tests: this is the deep-link payload ingestion path.</summary>
-    internal static (long ChatId, string? Text) ToMessage(Update update)
+    internal static BotMessage ToMessage(Update update)
     {
         return update.UpdateType switch
         {
-            "bot_started" => (update.ChatId ?? 0, "/start " + update.Payload),
-            "message_created" => (update.Message?.Recipient?.ChatId ?? update.ChatId ?? 0,
+            "bot_started" => Sender(update.ChatId ?? 0, update.User, "/start " + update.Payload),
+            "message_created" => new BotMessage(
+                update.Message?.Recipient?.ChatId ?? update.ChatId ?? 0,
+                update.Message?.Sender?.UserId ?? update.Message?.Sender?.Id ?? update.Message?.Recipient?.ChatId ?? update.ChatId ?? 0,
+                NameOf(update.Message?.Sender),
+                update.Message?.Sender?.Username,
                 update.Message?.Body?.Text ?? update.Message?.Text),
-            _ => (0, null),
+            _ => new BotMessage(0, 0, null, null, null),
         };
+
+        static BotMessage Sender(long chatId, MaxUser? user, string text)
+        {
+            return new BotMessage(chatId, user?.UserId ?? user?.Id ?? chatId, NameOf(user), user?.Username, text);
+        }
+    }
+
+    private static string? NameOf(MaxUser? u)
+    {
+        var name = u?.Name ?? string.Join(' ', new[] { u?.FirstName, u?.LastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        return string.IsNullOrWhiteSpace(name) ? null : name;
     }
 
     private string? Token => string.IsNullOrWhiteSpace(_options.Value.BotToken) ? null : _options.Value.BotToken;
@@ -165,12 +180,24 @@ internal sealed class MaxBotGateway : IBotLinkGateway, IDisposable
         [property: JsonPropertyName("update_type")] string? UpdateType,
         [property: JsonPropertyName("chat_id")] long? ChatId,
         [property: JsonPropertyName("payload")] string? Payload,
+        [property: JsonPropertyName("user")] MaxUser? User,
         [property: JsonPropertyName("message")] MaxMessage? Message);
 
     internal sealed record MaxMessage(
+        [property: JsonPropertyName("sender")] MaxUser? Sender,
         [property: JsonPropertyName("recipient")] Recipient? Recipient,
         [property: JsonPropertyName("body")] MaxBody? Body,
         [property: JsonPropertyName("text")] string? Text);
+
+    /// <summary>Tolerant over the API's user shapes (bot_started carries `user`, message_created a
+    /// `sender`; ids appear as either `user_id` or `id`).</summary>
+    internal sealed record MaxUser(
+        [property: JsonPropertyName("user_id")] long? UserId,
+        long? Id,
+        [property: JsonPropertyName("first_name")] string? FirstName,
+        [property: JsonPropertyName("last_name")] string? LastName,
+        string? Username,
+        string? Name);
 
     internal sealed record Recipient([property: JsonPropertyName("chat_id")] long? ChatId);
 

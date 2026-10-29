@@ -96,9 +96,9 @@ public sealed class MaxBotGatewayTests
 
         var seen = new List<(long ChatId, string? Text)>();
         using var done = new CancellationTokenSource();
-        await gateway.ReceiveAsync(async (chatId, text, _) =>
+        await gateway.ReceiveAsync(async (msg, _) =>
         {
-            seen.Add((chatId, text));
+            seen.Add((msg.ChatId, msg.Text));
             if (seen.Count == 3)
             {
                 await done.CancelAsync();
@@ -118,12 +118,51 @@ public sealed class MaxBotGatewayTests
     }
 
     [Fact]
+    public async Task Receive_Carries_The_Sender_Identity_From_User_And_Sender_Fields()
+    {
+        // bot_started carries `user`; message_created carries `sender` (either id shape tolerated).
+        const string page =
+            """
+            {"updates":[
+                {"update_type":"bot_started","timestamp":1,"chat_id":42,"payload":"abc",
+                 "user":{"user_id":777,"first_name":"Ada","last_name":"Lovelace","username":"ada"}},
+                {"update_type":"message_created","timestamp":2,
+                 "message":{"sender":{"id":9001,"name":"Grace Hopper","username":"grace"},
+                            "recipient":{"chat_id":43},"body":{"text":"/start def"}}}],
+             "marker":9}
+            """;
+        using var api = new FakeMaxApi().RespondWith((200, page));
+        using var gateway = new MaxBotGateway(Cfg("tok-123"), api.Client);
+
+        var seen = new List<BotMessage>();
+        using var done = new CancellationTokenSource();
+        await gateway.ReceiveAsync(async (msg, _) =>
+        {
+            seen.Add(msg);
+            if (seen.Count == 2)
+            {
+                await done.CancelAsync();
+            }
+
+            await Task.CompletedTask;
+        }, done.Token);
+
+        Assert.Equal(42, seen[0].ChatId);
+        Assert.Equal(777, seen[0].SenderId);
+        Assert.Equal("Ada Lovelace", seen[0].SenderName);
+        Assert.Equal("ada", seen[0].SenderUsername);
+        Assert.Equal(43, seen[1].ChatId);
+        Assert.Equal(9001, seen[1].SenderId);
+        Assert.Equal("Grace Hopper", seen[1].SenderName);
+    }
+
+    [Fact]
     public async Task Receive_Without_Token_Returns_Immediately()
     {
         using var api = new FakeMaxApi();
         using var gateway = new MaxBotGateway(Cfg(""), api.Client);
 
-        await gateway.ReceiveAsync((_, _, _) => Task.CompletedTask, CancellationToken.None);
+        await gateway.ReceiveAsync((_, _) => Task.CompletedTask, CancellationToken.None);
 
         Assert.Empty(api.Requests);
     }

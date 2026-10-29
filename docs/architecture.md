@@ -12,7 +12,7 @@ Private photo/video sharing for a single event, run by a non-expert on a small s
 ```mermaid
 flowchart LR
   B[Browser<br/>core JS + theme] -->|HTTPS via proxy| K[Kestrel / ASP.NET Core Minimal APIs]
-  K --> A[Auth: e-mail code + cookie]
+  K --> A[Auth: e-mail code or bot sign-in + cookie]
   K --> E[Endpoints: tabs, media, download, stars, subscriptions]
   E --> DB[(SQLite<br/>/data)]
   E --> S[IMediaStorage<br/>/media]
@@ -41,9 +41,19 @@ Single deployable. No external queue, cache or object store. Replace `IMediaStor
 * Login: guest enters e-mail -> 6-digit code (HMAC-hashed with a server pepper, 10 min, 5 attempts, 3 codes/10 min)
   -> HttpOnly SameSite=Lax cookie holding `mid` (member) and `eid` (event). `InviteOnly` events accept only
   e-mails on the invite list (owner-managed via `/invites` or `add-invites`) or already-existing members.
+* **Bot sign-in (Telegram/MAX)**: an alternative passwordless login with no e-mail or SMS. The browser mints a
+  128-bit single-use `LoginRequest` (stored only as SHA-256, 15-minute TTL) and shows the bot's deep link; the
+  member presses Start in the chat; `BotLinkWorker` proves the sender's messenger identity (channel + stable
+  user id) and marks the request confirmed; the polling browser consumes it atomically and receives the same
+  session cookie. Open events join like any e-mail could; `InviteOnly` events require a pre-registered
+  messenger invite (handle, owner-managed like e-mails). Messenger members carry `MessengerChannel` +
+  `MessengerId` (and the handle seen at sign-in) — uploads/stars attribute to that identity. The same person
+  signing in via e-mail **and** a messenger is deliberately two members; the event owner always stays the
+  e-mail identity, bot sign-ins are always `Guest`.
 * Every `/api/e/{token}/...` request re-resolves the event from the token **and** checks `eid == event.Id`,
   so a session for event A cannot read event B.
-* Responses never reveal whether an e-mail is known (always 202).
+* Responses never reveal whether an e-mail is known (always 202), and the bot-login poll answers the same
+  uniform `pending` for unknown, expired, unconfirmed and already-consumed codes.
 * Unknown token, unknown media id and foreign-event media id all return 404.
 
 ## 4. Data model
@@ -63,8 +73,8 @@ erDiagram
   MEDIAITEM ||--o{ STAR : starred_by
   TAB }o--o| MEMBER : "owned by (Author tabs)"
   EVENT { guid Id PK  string Name  string TokenHash UK  string TokenProtected  string OwnerEmail  bool InviteOnly  bool UploadsOpen  bool DownloadsOpen }
-  MEMBER { guid Id PK  guid EventId FK  string Email  string DisplayName  enum Role }
-  INVITE { guid Id PK  guid EventId FK  string Email UK-per-event  datetime CreatedUtc }
+  MEMBER { guid Id PK  guid EventId FK  string Email UK-per-event  enum MessengerChannel  string MessengerId UK-per-event  string MessengerHandle  string DisplayName  enum Role }
+  INVITE { guid Id PK  guid EventId FK  string Email UK-per-event  enum MessengerChannel  string MessengerHandle UK-per-event  datetime CreatedUtc }
   TAB { guid Id PK  guid EventId FK  string Name  enum Kind  int SortOrder  guid OwnerMemberId  bool AllowGuestUploads }
   MEDIAITEM { guid Id PK  guid EventId FK  guid TabId FK  guid UploaderId FK  enum Kind  enum Status  string OriginalFileName  string ContentType  long SizeBytes  string Sha256  string StorageKey  datetime TakenUtc  datetime NotifiedUtc }
   STAR { guid MemberId PK  guid MediaId PK }
@@ -74,9 +84,14 @@ erDiagram
   OUTBOX { long Id PK  guid SubscriptionId FK  enum Channel  string Address  string EventName  string Url  string UnsubscribeUrl  string GroupsJson  datetime NotBeforeUtc  int Attempts  datetime SentUtc }
   EVENT ||--o{ BOTLINKCODE : issues
   BOTLINKCODE { guid Id PK  enum Channel  string CodeHash UK  guid EventId FK  guid MemberId FK  guid TabId  enum Mode  datetime ExpiresUtc  datetime ConsumedUtc }
+  EVENT ||--o{ LOGINREQUEST : issues
+  LOGINREQUEST { guid Id PK  enum Channel  string CodeHash UK  guid EventId FK  guid MemberId FK  datetime ExpiresUtc  datetime ConsumedUtc }
 ```
 
 Notes
+* **Member identity is one of two kinds**: an e-mail (Email set) or a messenger identity
+  (MessengerChannel + MessengerId set, MessengerHandle informational). Uniqueness is per event per kind;
+  the same person may exist as several members (one per sign-in method) by design.
 * **Tab.Kind**: `Section` (curated by the owner: "Ceremony", "Party") or `Author` (personal tabs). Every member
   gets one Author tab automatically on their first upload (named after their display name), and can create any
   number of named Author tabs from the UI. A member's Author tab names are unique (DB-enforced). Only the tab's
@@ -105,20 +120,22 @@ Originals keep their EXIF (including GPS). TODO: owner option to strip location 
 | POST `/auth/request` `{email}` | no, rate-limited | Send code (always 202) |
 | POST `/auth/verify` `{email, code}` | no, rate-limited | Set session cookie |
 | POST `/auth/logout` | no | Clear cookie |
+| POST `/auth/bot/request` `{channel: Telegram\|Max}` | no, rate-limited | Mint a single-use 15-minute sign-in code; returns `{url}` = the bot's deep link, `expiresUtc`; 501 `bot_not_configured`, 400 `unknown_channel` |
+| POST `/auth/bot/poll` `{code}` | no, rate-limited | Uniform `{status:"pending"}` until the chat confirmed the request; then consumes it atomically and sets the session cookie (204) |
 | GET `/me`, PUT `/me` | session | Profile |
 | GET `/tabs`; POST `/tabs` | session or guest; POST: session | List (counts, canUpload, canRename; guests get all-false) / create tab: `personal:true` (or any non-owner) creates a named Author tab owned by the caller; owners may omit it to create a Section. Duplicate Author tab name -> 409 `name_in_use` |
 | PATCH `/tabs/{id}` `{name?, allowGuestUploads?}` | owner or tab owner | Rename any tab; only owners toggle Section guest uploads. Duplicate Author tab name -> 409 `name_in_use` |
 | PUT `/tabs/order` `{ids}` | owner | Reorder section tabs (listed order first, then the rest) |
 | DELETE `/tabs/{id}` | owner or tab owner | Remove tab + its media rows + blobs (members: own Author tabs only) |
 | GET `/tabs/{id}/media?skip&take` | session or guest | Page of items (with `starred`, `canDelete` = uploader or owner; guests always false) |
-| GET/POST/DELETE `/invites` | owner | Invite list for InviteOnly events (add pre-registered e-mails, see who joined) |
+| GET/POST/DELETE `/invites` | owner | Invite list for InviteOnly events. POST takes `{email}` or `{channel: Telegram\|Max, handle}` (handle normalised: lower-case, no @); GET reports `joined` for both kinds |
 | GET `/media/{id}/{thumb\|preview\|original}[?download=true]` | session or guest | Bytes. Original supports HTTP Range for video |
 | POST `/uploads[?tab=id]` multipart `files` | session | Upload; default = own tab |
 | DELETE `/media/{id}` | uploader or owner | Remove + blobs |
 | PUT/DELETE `/media/{id}/star` | session | Star / unstar |
 | GET `/download[?tab=id][&starred=true]` | session or guest (starred needs a session) | Streamed ZIP: file = `/media/..?download`, tab, starred, or everything |
 | POST `/download` `{ids}` | session or guest | Streamed ZIP of the selected items (multi-select). Ids of other events are silently dropped; max 500 |
-| GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings. PUT accepts `Email` only (confirmed via the sign-in address); bot channels answer 400 `bot_use_link` — link via the bot instead. Deleting a subscription also drops its pending outbox rows (cascade) |
+| GET/PUT `/subscriptions`, DELETE `/subscriptions/{id}` | session | Notification settings. PUT accepts `Email` only (confirmed via the sign-in address; bot sign-ins have none and get 400 `email_unavailable`); bot channels answer 400 `bot_use_link` — link via the bot instead. Deleting a subscription also drops its pending outbox rows (cascade) |
 | GET `/subscriptions/bot-link?channel=Telegram\|Max[&tab=id&mode=x]` | session | Mint a single-use 15-minute code and return `{url}` = the bot's deep link with the code as payload (`https://t.me/...` or `https://max.ru/...`); 501 `bot_not_configured` when that bot is unset, 400 `unknown_channel` for non-bot channels |
 | POST `/api/unsubscribe/{id}/{sig}` | HMAC link | One-click unsubscribe (valid sig is always 204, even if already gone) |
 | GET `/u/{id}.{sig}` | HMAC link | Unsubscribe page: theme shell + core JS confirming via the API above |
@@ -159,9 +176,15 @@ bot's deep link (`t.me/<bot>?start=<code>` or `max.ru/<bot>?start=<code>`); `Bot
 configured bot (idle when its `Telegram:BotToken` / `Max:BotToken` is unset), consumes the code for its own
 channel only and creates a confirmed subscription bound to the chat id - the bot proves the chat, like the
 sign-in code proves the e-mail. Codes are purged opportunistically; messages never log their contents.
-MAX is a plain REST client over `platform-api2.max.ru` (raw token in the `Authorization` header):
-`GET /me` for the bot username, `POST /messages?chat_id=…` for delivery, `GET /updates` long polling for
-`bot_started` (deep-link payload) and `message_created` (`/start <code>`) updates.
+**Bot sign-in** rides the same seam: `/auth/bot/request` mints a `LoginRequest` (same code shape and TTL),
+the worker resolves the sender's messenger identity on `/start` (existing member reused; otherwise created
+on open events, or matched against a messenger invite on `InviteOnly` ones) and marks the request confirmed;
+the polling browser consumes it (`ConsumedUtc` set by an atomic `ExecuteUpdate`, so exactly one poll wins)
+and gets the session. Gateways normalise both platforms into one `BotMessage(chatId, senderId, name,
+username, text)`; MAX is a plain REST client over `platform-api2.max.ru` (raw token in the `Authorization`
+header): `GET /me` for the bot username, `POST /messages?chat_id=…` for delivery, `GET /updates` long
+polling for `bot_started` (deep-link payload + `user`) and `message_created` (`/start <code>` + `sender`)
+updates.
 
 ## 8. Theming contract
 Core JS has no markup/styling. A theme folder provides:
@@ -175,6 +198,11 @@ Core JS has no markup/styling. A theme folder provides:
 * `theme.css` and any assets (`/theme/<file>`).
 
 Hooks: `data-ref="..."` marks elements the core fills or wires (see the default theme for the full list).
+The `login` template carries, besides the e-mail/code forms, `data-ref="bot-login"` (unhidden when `/public`
+reports a configured bot), the per-channel buttons `data-ref="login-telegram"` / `data-ref="login-max"`
+(hidden unless that capability is true), `data-ref="bot-open"` (the deep-link anchor shown after minting)
+and `data-ref="bot-status"` (waiting/expired text). The core polls `/auth/bot/poll` every 3 seconds until
+confirmation, expiry or the visitor leaving the login screen.
 Theme markup can declare translatable text: `data-i18n="key"` sets `textContent` from the strings system
 and `data-i18n-aria="key"` sets the `aria-label` and mirrors it to a `title` hover hint (so icon-only
 buttons get tooltips for free); keep them on leaf elements. The core fills both on every
@@ -196,7 +224,8 @@ The `tab-manage` dialog needs `data-ref="close|list|form|name|message"`; it adds
 the checkbox PATCHes `allowGuestUploads` (sections only), the arrows reorder sections via `PUT /tabs/order`,
 and the armed `delete` removes the tab with all its media. The `invites` dialog needs
 `data-ref="close|list|empty|form|email|message"`; each `invite-row` needs `data-ref="label|state|remove"` —
-the core lists, adds and deletes invites (owner only).
+the core lists, adds and deletes invites (owner only). The invite input takes an e-mail or a messenger
+invite in the `telegram:@user` / `max:@user` form; rows label messenger invites with their @handle.
 Tiles expose an optional `delete` hook (owner or uploader; per-item `canDelete` from the media listing):
 first click arms it, second deletes via `DELETE /media/{id}`; the lightbox offers the same armed `delete` —
 its button carries a theme-drawn glyph (e.g. a trash icon) plus a `data-ref="delete-label"` span that the
@@ -224,7 +253,8 @@ State is exposed to CSS as attributes and properties — the core never sets cla
 * manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed.
 
 i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
-`codeLabel`, `viewAlbum`, `upload`, `notifyMe`, `signout`, `back`, `downloadTab`, `downloadStarred`, `downloadAll`,
+`codeLabel`, `viewAlbum`, `loginTelegram`, `loginMax`, `botOpenTelegram`, `botOpenMax`, `botWaiting`, `botExpired`,
+`botFail`, `upload`, `notifyMe`, `signout`, `back`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
 (`{name}`), `dropHere`, `dropSignIn`, `dropNotAllowed`, `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsMax`, `subsTab`, `subsAllTabs`, `subsMode`,
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
@@ -252,6 +282,10 @@ worked example with its own markup and class names.
 * [x] CSRF header, strict CSP, `no-referrer`, `noindex`, `nosniff`, `frame-ancestors 'none'`
 * [x] Uploads: size limit, content sniffing, whitelist types, no SVG/HTML, server-generated paths, pixel-count guard
 * [x] Bot link codes: 128-bit single-use, 15-minute TTL, stored only as SHA-256, scoped to their channel; bot-confirmed chat ids
+* [x] Bot sign-in: same code hygiene; uniform `pending` poll (no existence leaks); the confirmation is
+      consumed exactly once by the browser that minted it. Known trade-off (documented): whoever can make a
+      chat press Start on a minted code controls that sign-in — getting someone else's session requires
+      tricking them into confirming a link they did not start (classic phishing, not a protocol break)
 * [x] Media served only through authorised endpoints, never from a static path
 * [x] ffmpeg via `ArgumentList` (no shell), timeout
 * [x] Log level for `Hosting.Diagnostics` lowered so tokens in URLs are not logged at Information
@@ -283,6 +317,8 @@ ASP.NET Core Module - the app needs no custom `web.config` beyond ANCM defaults;
 | One cookie, one event at a time | Simplicity. Opening a second event signs you into that one |
 | AV hook is a fail-closed no-op | Operators wire ClamAV etc. by implementing `IAntivirusScanner`; nothing is stored that the scanner did not clear |
 | HEIC stays unsupported | Licence/patent risk outweighs conversion value; JPEG/PNG/WebP/GIF cover everything else |
+| A messenger sign-in is its own member identity | Uploads/stars must attribute to what was actually proven (the bot's user id); merging e-mail and messenger personas across events would need a global account concept that v1 deliberately avoids. The owner stays e-mail-only, so management keeps its proven path |
+| Bot sign-in confirms in the chat, browser polls for the cookie | No third-party widget JS (Telegram's Login Widget would break the `'self'` CSP), works desktop↔phone, and the code never transits the browser↔chat trust boundary twice |
 | Strict analysis baked into `Directory.Build.props` | All CA rules on (`AnalysisLevel latest-all`), code style + naming enforced in build, warnings are errors, NuGet audit down to low severity. Style/naming contract lives in `.editorconfig`; `dotnet format EventPix.slnx --verify-no-changes` is the CI gate |
 | App types are `internal` | CA1515: this is an application, not a library. Tests see internals via `InternalsVisibleTo` |
 | Single NuGet source in `NuGet.config` | Central Package Management needs deterministic restore (NU1507); patched direct refs pin vulnerable transitives (SQLitePCLRaw, System.Security.Cryptography.Pkcs) |
@@ -312,3 +348,8 @@ Workflows: `.github/workflows/dotnet.yml` (build, tests, vulnerable-package chec
 4. ~~Owner admin web UI vs. staying CLI-only~~ — decided: the owner UI manages tabs (create sections, rename,
    reorder, per-section guest uploads, delete), invites and media moderation directly; the CLI remains for
    creating events, rotating tokens and bulk invites.
+5. ~~Passwordless login without e-mail/SMS~~ — decided: Telegram/MAX bot sign-in (messenger identity on the
+   member; e-mail OTP stays as the owner path and a fallback). Handle-based messenger invites have a known
+   caveat: a changed or removed messenger username breaks a pending invite match — the stable MessengerId
+   binds only after the first successful sign-in. Auto-linking a notification subscription at first bot
+   sign-in was deferred; "Notify me" still does it explicitly.

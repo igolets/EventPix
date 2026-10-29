@@ -38,6 +38,21 @@ internal static class Tokens
         var s = raw.Trim().ToLowerInvariant();
         return MailAddress.TryCreate(s, out var a) && a.Address == s ? s : null;
     }
+
+    /// <summary>
+    /// Returns a messenger handle in stored form: lower-case, no leading @, ASCII letters/digits/_
+    /// only (Telegram's rule; MAX is compatible), 1-64 chars. Null when absent or malformed.
+    /// </summary>
+    public static string? NormalizeHandle(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var s = raw.Trim().TrimStart('@').ToLowerInvariant();
+        return s.Length is > 0 and <= 64 && s.All(c => char.IsAsciiLetterOrDigit(c) || c == '_') ? s : null;
+    }
 }
 
 /// <summary>Server-side secret for HMACs (OTP hashes, unsubscribe signatures). Lives in DataPath.</summary>

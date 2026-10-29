@@ -119,7 +119,7 @@ public sealed class BotLinkTests : IDisposable
         var owner = "owner-" + Guid.NewGuid().ToString("N") + "@example.com";
         var (eventId, memberId, code) = await MintAsync(owner, NotifyChannel.Telegram, NotifyMode.Digest);
 
-        await Worker().OnUpdateAsync(_telegram, 777, "/start " + code, CancellationToken.None);
+        await Worker().OnUpdateAsync(_telegram, Msg(777, "/start " + code), CancellationToken.None);
 
         using var scope = _app.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
@@ -136,7 +136,7 @@ public sealed class BotLinkTests : IDisposable
         Assert.NotNull(link.ConsumedUtc);
 
         // A code is single-use: the same /start again only earns the rejection text.
-        await Worker().OnUpdateAsync(_telegram, 777, "/start " + code, CancellationToken.None);
+        await Worker().OnUpdateAsync(_telegram, Msg(777, "/start " + code), CancellationToken.None);
         Assert.Single(await db.Subscriptions.ToListAsync());
 
         // The confirmation names the scope and cadence so a wrong link is caught immediately.
@@ -162,7 +162,7 @@ public sealed class BotLinkTests : IDisposable
         await db.SaveChangesAsync();
 
         var code = await MintCodeAsync(eventId, ownerMember.Id, NotifyChannel.Max, NotifyMode.Digest, tab.Id);
-        await Worker().OnUpdateAsync(_max, 555, "/start " + code, CancellationToken.None);
+        await Worker().OnUpdateAsync(_max, Msg(555, "/start " + code), CancellationToken.None);
 
         var message = Assert.Single(_max.Sent);
         Assert.Contains("album \u201cCeremony\u201d", message.Text, StringComparison.Ordinal);
@@ -177,7 +177,7 @@ public sealed class BotLinkTests : IDisposable
 
         // The tab was deleted during the 15-minute code window: confirm gracefully, not with an error.
         var code = await MintCodeAsync(eventId, memberId, NotifyChannel.Max, NotifyMode.Instant, Guid.NewGuid());
-        await Worker().OnUpdateAsync(_max, 555, "/start " + code, CancellationToken.None);
+        await Worker().OnUpdateAsync(_max, Msg(555, "/start " + code), CancellationToken.None);
 
         var message = Assert.Single(_max.Sent);
         Assert.Contains("a removed album", message.Text, StringComparison.Ordinal);
@@ -190,7 +190,7 @@ public sealed class BotLinkTests : IDisposable
         var owner = "owner-" + Guid.NewGuid().ToString("N") + "@example.com";
         var (eventId, memberId, code) = await MintAsync(owner, NotifyChannel.Max, NotifyMode.Instant);
 
-        await Worker().OnUpdateAsync(_max, 555, "/start " + code, CancellationToken.None);
+        await Worker().OnUpdateAsync(_max, Msg(555, "/start " + code), CancellationToken.None);
 
         using var scope = _app.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
@@ -212,12 +212,12 @@ public sealed class BotLinkTests : IDisposable
         var (_, _, code) = await MintAsync(owner, NotifyChannel.Max, NotifyMode.Instant);
 
         // Presenting a MAX code to the Telegram bot proves nothing and changes nothing...
-        await Worker().OnUpdateAsync(_telegram, 777, "/start " + code, CancellationToken.None);
+        await Worker().OnUpdateAsync(_telegram, Msg(777, "/start " + code), CancellationToken.None);
         Assert.Contains(_telegram.Sent, m => m.Text.Contains("not valid", StringComparison.Ordinal));
         Assert.DoesNotContain(_max.Sent, _ => true);
 
         // ...and the code itself stays unconsumed, so the right bot still accepts it.
-        await Worker().OnUpdateAsync(_max, 555, "/start " + code, CancellationToken.None);
+        await Worker().OnUpdateAsync(_max, Msg(555, "/start " + code), CancellationToken.None);
         using var scope = _app.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
         var sub = await db.Subscriptions.SingleAsync();
@@ -233,8 +233,8 @@ public sealed class BotLinkTests : IDisposable
         var first = await MintCodeAsync(eventId, memberId, NotifyChannel.Max, NotifyMode.Instant);
         var second = await MintCodeAsync(eventId, memberId, NotifyChannel.Max, NotifyMode.Instant);
 
-        await Worker().OnUpdateAsync(_max, 555, "/start " + first, CancellationToken.None);
-        await Worker().OnUpdateAsync(_max, 666, "/start " + second, CancellationToken.None);
+        await Worker().OnUpdateAsync(_max, Msg(555, "/start " + first), CancellationToken.None);
+        await Worker().OnUpdateAsync(_max, Msg(666, "/start " + second), CancellationToken.None);
 
         using var scope = _app.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
@@ -248,7 +248,7 @@ public sealed class BotLinkTests : IDisposable
         var owner = "owner-" + Guid.NewGuid().ToString("N") + "@example.com";
         await _app.CreateEventAsync(owner);
 
-        await Worker().OnUpdateAsync(_max, 42, "/start bogus", CancellationToken.None);
+        await Worker().OnUpdateAsync(_max, Msg(42, "/start bogus"), CancellationToken.None);
 
         using var scope = _app.Factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EventPixDb>();
@@ -262,8 +262,8 @@ public sealed class BotLinkTests : IDisposable
     [Fact]
     public async Task Non_Start_Text_Is_Ignored()
     {
-        await Worker().OnUpdateAsync(_telegram, 42, "hello there", CancellationToken.None);
-        await Worker().OnUpdateAsync(_telegram, 42, null, CancellationToken.None);
+        await Worker().OnUpdateAsync(_telegram, Msg(42, "hello there"), CancellationToken.None);
+        await Worker().OnUpdateAsync(_telegram, Msg(42, null), CancellationToken.None);
         Assert.Empty(_telegram.Sent);
         Assert.Empty(_max.Sent);
     }
@@ -271,19 +271,33 @@ public sealed class BotLinkTests : IDisposable
     [Fact]
     public void Max_Updates_Normalise_To_The_Start_Shape()
     {
-        var payload = new MaxBotGateway.Update("bot_started", ChatId: 42, Payload: "abc", Message: null);
-        Assert.Equal((42L, "/start abc"), MaxBotGateway.ToMessage(payload));
+        var payload = new MaxBotGateway.Update("bot_started", ChatId: 42, Payload: "abc", User: null, Message: null);
+        var started = MaxBotGateway.ToMessage(payload);
+        Assert.Equal(42, started.ChatId);
+        Assert.Equal(42, started.SenderId);
+        Assert.Equal("/start abc", started.Text);
 
-        // A typed /start in the dialog arrives as message_created.
-        var text = new MaxBotGateway.Update("message_created", null, null,
-            new MaxBotGateway.MaxMessage(new MaxBotGateway.Recipient(43), null, "/start def"));
-        Assert.Equal((43L, "/start def"), MaxBotGateway.ToMessage(text));
+        // A typed /start in the dialog arrives as message_created, carrying the human sender.
+        var text = new MaxBotGateway.Update("message_created", null, null, null,
+            new MaxBotGateway.MaxMessage(new MaxBotGateway.MaxUser(UserId: 9001, null, "Ada", "Lovelace", "ada", null),
+                new MaxBotGateway.Recipient(43), null, "/start def"));
+        var created = MaxBotGateway.ToMessage(text);
+        Assert.Equal(43, created.ChatId);
+        Assert.Equal(9001, created.SenderId);
+        Assert.Equal("Ada Lovelace", created.SenderName);
+        Assert.Equal("ada", created.SenderUsername);
+        Assert.Equal("/start def", created.Text);
 
-        // Alternative message shape (text directly on the message) and unrelated updates.
-        var flat = new MaxBotGateway.Update("message_created", 44, null,
-            new MaxBotGateway.MaxMessage(null, new MaxBotGateway.MaxBody("/start ghi"), null));
-        Assert.Equal((44L, "/start ghi"), MaxBotGateway.ToMessage(flat));
-        Assert.Equal((0L, null), MaxBotGateway.ToMessage(new MaxBotGateway.Update("bot_stopped", 45, null, null)));
+        // Alternative shapes: user_id-free sender (chat fallback), flat text, unrelated updates.
+        var noSender = new MaxBotGateway.Update("message_created", null, null, null,
+            new MaxBotGateway.MaxMessage(null, new MaxBotGateway.Recipient(46), new MaxBotGateway.MaxBody("/start jkl"), null));
+        var fallback = MaxBotGateway.ToMessage(noSender);
+        Assert.Equal(46, fallback.ChatId);
+        Assert.Equal(46, fallback.SenderId);
+        var flat = new MaxBotGateway.Update("message_created", 44, null, null,
+            new MaxBotGateway.MaxMessage(null, null, new MaxBotGateway.MaxBody("/start ghi"), null));
+        Assert.Equal("/start ghi", MaxBotGateway.ToMessage(flat).Text);
+        Assert.Equal(0, MaxBotGateway.ToMessage(new MaxBotGateway.Update("bot_stopped", 45, null, null, null)).ChatId);
     }
 
     /// <summary>Creates an event, its owner and one fresh link code; returns their ids plus the raw code.</summary>
@@ -360,9 +374,15 @@ public sealed class BotLinkTests : IDisposable
                 : $"https://t.me/{botName}?start={code}";
         }
 
-        public Task ReceiveAsync(Func<long, string?, CancellationToken, Task> onMessage, CancellationToken ct)
+        public Task ReceiveAsync(Func<BotMessage, CancellationToken, Task> onMessage, CancellationToken ct)
         {
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>A normalised inbound message: chat == sender id, like the private dialogs this flow uses.</summary>
+    private static BotMessage Msg(long chatId, string? text, string? name = null, string? username = null)
+    {
+        return new BotMessage(chatId, chatId, name, username, text);
     }
 }
