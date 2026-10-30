@@ -170,6 +170,9 @@ public sealed partial class E2ETests(PlaywrightFixture fixture)
             var page = await context.NewPageAsync();
             await page.GotoAsync($"{app.BaseAddress}e/{token}?lang=ru");
 
+            // The tab title is a strings key too, not just the static index.html default.
+            await Assertions.Expect(page).ToHaveTitleAsync("Общий альбом");
+
             // Static theme labels are localised through data-i18n, not just core-written strings.
             await Assertions.Expect(page.Locator("[data-i18n='eyebrow']")).ToHaveTextAsync("Общий альбом");
             await Assertions.Expect(page.Locator("[data-i18n='sendCode']")).ToHaveTextAsync("Отправить код");

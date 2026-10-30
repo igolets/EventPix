@@ -62,3 +62,8 @@ In Docker, prefix with `docker compose exec eventpix`, e.g.
 ## Theming
 
 Copy `themes/default` (or the dark `themes/mono`, or the bright `themes/wedding`) to `themes/my-theme`, edit, set `EventPix:ActiveTheme`. See [docs/architecture.md § 8 Theming contract](docs/architecture.md#8-theming-contract).
+
+## Languages
+
+The browser picks the UI language itself (English default, Russian `ru` shipped per theme; `?lang=xx` overrides).
+Server-composed texts — sign-in e-mails, notifications, bot replies — follow `EventPix:Language` (`en`/`ru`).

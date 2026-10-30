@@ -1,6 +1,7 @@
 using EventPix.Web.Configuration;
 using EventPix.Web.Data;
 using EventPix.Web.Domain;
+using EventPix.Web.Localization;
 using EventPix.Web.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -151,6 +152,7 @@ internal sealed class NotificationWorker(
         CancellationToken ct)
     {
         var now = clock.GetUtcNow().UtcDateTime;
+        var lang = Messages.Resolve(opts.Language);
         var due = await db.Outbox
             .Where(o => o.SentUtc == null && o.NotBeforeUtc <= now && o.Attempts < MaxAttempts)
             .OrderBy(o => o.Id)
@@ -167,8 +169,8 @@ internal sealed class NotificationWorker(
             try
             {
                 var groups = Composer.Deserialize(row.GroupsJson);
-                await channel.SendAsync(row.Address, Composer.Subject(row.EventName, groups),
-                    Composer.Body(groups, row.Url, row.UnsubscribeUrl), ct);
+                await channel.SendAsync(row.Address, Composer.Subject(lang, row.EventName, groups),
+                    Composer.Body(lang, groups, row.Url, row.UnsubscribeUrl), ct);
                 row.SentUtc = clock.GetUtcNow().UtcDateTime;
                 row.Attempts++;
             }

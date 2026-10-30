@@ -26,6 +26,7 @@ const DEFAULT_STRINGS = {
   rateLimited: 'Too many attempts. Please wait a few minutes.',
   emailInvalid: 'Please check the e-mail address.',
   codeInvalid: 'That code is not valid or has expired.',
+  pageTitle: 'Shared album',
   eyebrow: 'Shared album',
   emailLabel: 'Your e-mail',
   sendCode: 'Send me a code',
@@ -989,6 +990,7 @@ async function start() {
 const html = await (await fetch('/theme/templates.html')).text();
 templates = new DOMParser().parseFromString(html, 'text/html');
 loadStrings();
+document.title = t('pageTitle');
 start();
 
 // Base strings come from <template data-tpl="strings"> (English fallback). A theme may ship translations as

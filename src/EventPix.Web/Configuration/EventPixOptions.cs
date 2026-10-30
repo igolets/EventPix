@@ -11,6 +11,9 @@ internal sealed class EventPixOptions
     /// <summary>Folder containing theme folders. Relative paths resolve against the app directory.</summary>
     public string ThemesPath { get; set; } = "themes";
     public string ActiveTheme { get; set; } = "default";
+    /// <summary>Language of the texts the server composes (OTP e-mail, notifications, bot replies).
+    /// "en" (default) or "ru"; see EventPix.Web.Localization.Messages.</summary>
+    public string Language { get; set; } = "en";
     public string PublicBaseUrl { get; set; } = "http://localhost:5000";
     public long MaxUploadBytes { get; set; } = 2L * 1024 * 1024 * 1024;
     /// <summary>Per-event storage cap over originals, thumbnails and previews. 0 = unlimited.</summary>

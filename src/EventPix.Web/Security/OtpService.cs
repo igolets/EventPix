@@ -3,6 +3,7 @@ using System.Text;
 using EventPix.Web.Configuration;
 using EventPix.Web.Data;
 using EventPix.Web.Domain;
+using EventPix.Web.Localization;
 using EventPix.Web.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -51,9 +52,9 @@ internal sealed class OtpService(
         });
         await db.SaveChangesAsync(ct);
 
-        await mail.SendAsync(email, $"Your sign-in code for {ev.Name}",
-            $"Your code: {code}\n\nIt is valid for {options.Value.OtpMinutes} minutes. " +
-            "If you did not request it, ignore this message.", ct);
+        var lang = Messages.Resolve(options.Value.Language);
+        await mail.SendAsync(email, Messages.OtpSubject(lang, ev.Name),
+            Messages.OtpBody(lang, code, options.Value.OtpMinutes), ct);
     }
 
     public async Task<Member?> VerifyAsync(Event ev, string email, string code, CancellationToken ct)

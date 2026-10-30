@@ -167,8 +167,15 @@ one outbox row is enqueued per matching subscription (never to the uploader) and
 `EventPix:NotifyDigestHours` (default 24) with every new batch, so delivery is one roll-up message per
 window. *Deliver*: due rows are sent through their `INotificationChannel`; failures back off exponentially
 (2, 4, 8 … capped at 60 minutes, max 8 attempts) and are then dropped with a warning. Delivery is
-at-least-once. Channels only transport a subject + body; `Composer` renders all texts, so a new channel
-is one class + one DI line.
+at-least-once. Channels only transport a subject + body; `Composer` renders all texts (from the
+`Localization/Messages` catalogue, see below), so a new channel is one class + one DI line.
+
+**Server-side languages**: every text the server composes itself — the OTP e-mail, notification
+messages and bot replies — comes from the `Localization/Messages` catalogue and follows
+`EventPix:Language` (`en` default, `ru` shipped; unknown tags fall back to English). The setting is
+deployment-wide because e-mail and bot chats carry no language signal; the browser side is
+per-visitor through the theme's `strings` templates instead. English strings must stay
+byte-identical to the historical texts (tests assert them).
 
 **Bot linking (Telegram and MAX)**: the web UI asks `/subscriptions/bot-link?channel=…` for a 128-bit
 single-use code (stored only as SHA-256, 15-minute TTL, together with its channel). The member opens the
@@ -206,7 +213,9 @@ confirmation, expiry or the visitor leaving the login screen.
 Theme markup can declare translatable text: `data-i18n="key"` sets `textContent` from the strings system
 and `data-i18n-aria="key"` sets the `aria-label` and mirrors it to a `title` hover hint (so icon-only
 buttons get tooltips for free); keep them on leaf elements. The core fills both on every
-rendered view, so a theme is localisable purely through its `strings` templates.
+rendered view, so a theme is localisable purely through its `strings` templates. After the strings
+load the core also sets `document.title` from the `pageTitle` key (the static `<title>` in
+`index.html` is only the pre-JS fallback), so themes localise the tab title through the same system.
 Gallery hooks beyond the basics: `select` (toggle multi-select), `download-selected` (POSTs `/download`),
 `progress` (upload bar), `dropzone-text` (text of the theme's drag-and-drop overlay, filled during a file
 drag; the overlay itself is theme markup shown via the `[data-dragover]` state below — drops are accepted
@@ -252,7 +261,7 @@ State is exposed to CSS as attributes and properties — the core never sets cla
   `touch-action: none` on the stage;
 * manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed.
 
-i18n keys (strings template): `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
+i18n keys (strings template): `pageTitle`, `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
 `codeLabel`, `viewAlbum`, `loginTelegram`, `loginMax`, `botOpenTelegram`, `botOpenMax`, `botWaiting`, `botExpired`,
 `botFail`, `upload`, `notifyMe`, `signout`, `back`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
