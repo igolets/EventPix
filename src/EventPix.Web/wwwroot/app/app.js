@@ -30,11 +30,14 @@ const DEFAULT_STRINGS = {
   eyebrow: 'Shared album',
   emailLabel: 'Your e-mail',
   sendCode: 'Send me a code',
+  sendingCode: 'Sending the code…',
   codeLabel: 'Enter the 6-digit code we e-mailed you',
+  verifyingCode: 'Checking the code…',
   loginTelegram: 'Sign in with Telegram',
   loginMax: 'Sign in with MAX',
   botOpenTelegram: 'Open in Telegram',
   botOpenMax: 'Open in MAX',
+  botConnecting: 'Contacting the bot…',
   botWaiting: 'Press Start in the chat — this page signs you in automatically.',
   botExpired: 'The sign-in link has expired. Tap the button again for a new one.',
   botFail: 'Could not start the bot sign-in.',
@@ -73,6 +76,7 @@ const DEFAULT_STRINGS = {
   select: 'Select',
   selecting: 'Cancel selection',
   downloadSelected: 'Download selected ({count})',
+  downloadPreparing: 'Preparing the download…',
   downloadFailed: 'Could not download the selection.',
   unsubTitle: 'Unsubscribe',
   unsubOk: 'You have been unsubscribed. You will not receive any more notifications for this album.',
@@ -137,6 +141,14 @@ const api = (path, opts = {}) =>
 const jsonBody = (obj) => ({ body: JSON.stringify(obj), headers: { 'Content-Type': 'application/json' } });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Busy feedback: while the action runs the element carries [data-busy=true] (themes dim its inputs
+// and buttons) and a re-entry while busy is ignored, so a double click cannot fire a request twice.
+const withBusy = async (el, action) => {
+  if (el.dataset.busy === 'true') return;
+  el.dataset.busy = 'true';
+  try { await action(); } finally { el.dataset.busy = 'false'; }
+};
+
 function tpl(name) {
   const t2 = templates.querySelector(`template[data-tpl="${name}"]`);
   if (!t2) throw new Error(`Theme is missing <template data-tpl="${name}">`);
@@ -155,6 +167,7 @@ function showLogin(info) {
   text(view, 'event-name', info.name);
   text(view, 'event-description', info.description || '');
   const emailForm = ref(view, 'email-form'), codeForm = ref(view, 'code-form'), msg = ref(view, 'message');
+  const status = ref(view, 'login-status');   // polite live region for the "sending/checking/connecting" feedback
   codeForm.hidden = true;
   let email = '';
 
@@ -166,7 +179,7 @@ function showLogin(info) {
 
   // Bot sign-in: mint a deep link, the member presses Start in the chat, the browser polls until
   // the request is confirmed and then receives the session. Only buttons for configured bots show.
-  const botStatus = ref(view, 'bot-status'), botOpen = ref(view, 'bot-open');
+  const botOpen = ref(view, 'bot-open');
   const botLogin = ref(view, 'bot-login');
   if (botLogin && (info.telegram || info.max)) {
     botLogin.hidden = false;
@@ -184,15 +197,18 @@ function showLogin(info) {
   }
 
   async function startBotLogin(channel) {
+    if (botLogin.dataset.busy === 'true') return;   // a request is already in flight
     stopBotPoll();
     const mine = (state.loginGeneration = (state.loginGeneration ?? 0) + 1);
     msg.textContent = '';
-    botStatus.hidden = true;
     botOpen.hidden = true;
-    const res = await api('/auth/bot/request', { method: 'POST', ...jsonBody({ channel: channel === 'max' ? 'Max' : 'Telegram' }) });
+    status.hidden = false;
+    status.textContent = t('botConnecting');
+    const res = await withBusy(botLogin, () =>
+      api('/auth/bot/request', { method: 'POST', ...jsonBody({ channel: channel === 'max' ? 'Max' : 'Telegram' }) }));
+    if (mine !== state.loginGeneration) return;   // the user went somewhere else while we asked
     if (!res.ok) {
-      botStatus.hidden = false;
-      botStatus.textContent = res.status === 501 ? t(channel === 'max' ? 'subsMaxOff' : 'subsTelegramOff') : t('botFail');
+      status.textContent = res.status === 501 ? t(channel === 'max' ? 'subsMaxOff' : 'subsTelegramOff') : t('botFail');
       return;
     }
 
@@ -201,8 +217,8 @@ function showLogin(info) {
     botOpen.href = url;
     botOpen.textContent = t(channel === 'max' ? 'botOpenMax' : 'botOpenTelegram');
     botOpen.hidden = false;
-    botStatus.hidden = false;
-    botStatus.textContent = t('botWaiting');
+    status.hidden = false;
+    status.textContent = t('botWaiting');
 
     const deadline = Date.parse(expiresUtc) || 0;
     for (;;) {
@@ -216,24 +232,36 @@ function showLogin(info) {
 
     if (mine === state.loginGeneration) {
       botOpen.hidden = true;
-      botStatus.textContent = t('botExpired');
+      status.textContent = t('botExpired');
     }
   }
 
   emailForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (emailForm.dataset.busy === 'true') return;
     stopBotPoll();
     email = ref(view, 'email').value.trim();
     msg.textContent = '';
-    const res = await api('/auth/request', { method: 'POST', ...jsonBody({ email }) });
-    if (res.ok) { emailForm.hidden = true; codeForm.hidden = false; ref(view, 'code').focus(); }
-    else msg.textContent = res.status === 429 ? t('rateLimited') : t('emailInvalid');
+    status.hidden = false;
+    status.textContent = t('sendingCode');
+    await withBusy(emailForm, async () => {   // themes dim the input and the button while the code is sent
+      const res = await api('/auth/request', { method: 'POST', ...jsonBody({ email }) });
+      if (res.ok) { emailForm.hidden = true; codeForm.hidden = false; status.hidden = true; ref(view, 'code').focus(); }
+      else { status.hidden = true; msg.textContent = res.status === 429 ? t('rateLimited') : t('emailInvalid'); }
+    });
   });
   codeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const res = await api('/auth/verify', { method: 'POST', ...jsonBody({ email, code: ref(view, 'code').value }) });
-    if (res.ok) return start();
-    msg.textContent = t('codeInvalid');
+    if (codeForm.dataset.busy === 'true') return;
+    msg.textContent = '';
+    status.hidden = false;
+    status.textContent = t('verifyingCode');
+    await withBusy(codeForm, async () => {
+      const res = await api('/auth/verify', { method: 'POST', ...jsonBody({ email, code: ref(view, 'code').value }) });
+      if (res.ok) return start();
+      status.hidden = true;
+      msg.textContent = t('codeInvalid');
+    });
   });
   mount(view);
 }
@@ -350,11 +378,13 @@ async function openTabEditor(tab) {
       del.hidden = false;
       del.addEventListener('click', async () => {
         if (!armed) { armed = true; del.textContent = t('tabDeleteArmed'); return; }
-        const res = await api(`/tabs/${tab.id}`, { method: 'DELETE' });
-        if (!res.ok) { message.textContent = t('tabFail'); return; }
-        close();
-        state.tab = null;   // gone: fall back to the first tab
-        await loadTabs();
+        await withBusy(del, async () => {
+          const res = await api(`/tabs/${tab.id}`, { method: 'DELETE' });
+          if (!res.ok) { message.textContent = t('tabFail'); return; }
+          close();
+          state.tab = null;   // gone: fall back to the first tab
+          await loadTabs();
+        });
       });
     }
   } else {
@@ -365,12 +395,14 @@ async function openTabEditor(tab) {
     e.preventDefault();
     const value = name.value.trim();
     if (!value) return;
-    const res = tab
-      ? await api(`/tabs/${tab.id}`, { method: 'PATCH', ...jsonBody({ name: value }) })
-      : await api('/tabs', { method: 'POST', ...jsonBody({ name: value, personal: true }) });
-    if (!res.ok) { message.textContent = res.status === 409 ? t('tabNameInUse') : t('tabFail'); return; }
-    close();
-    await loadTabs(tab ? tab.id : (await res.json()).id);   // select the saved / created tab
+    await withBusy(ref(dialog, 'form'), async () => {
+      const res = tab
+        ? await api(`/tabs/${tab.id}`, { method: 'PATCH', ...jsonBody({ name: value }) })
+        : await api('/tabs', { method: 'POST', ...jsonBody({ name: value, personal: true }) });
+      if (!res.ok) { message.textContent = res.status === 409 ? t('tabNameInUse') : t('tabFail'); return; }
+      close();
+      await loadTabs(tab ? tab.id : (await res.json()).id);   // select the saved / created tab
+    });
   });
 
   document.body.append(dialog);
@@ -421,9 +453,11 @@ async function openTabManager() {
       let armed = false;
       del.addEventListener('click', async () => {
         if (!armed) { armed = true; row.dataset.armed = 'true'; del.textContent = t('tabDeleteArmed'); return; }
-        const res = await api(`/tabs/${t2.id}`, { method: 'DELETE' });
-        if (!res.ok) { fail(); return; }
-        await refresh();
+        await withBusy(row, async () => {
+          const res = await api(`/tabs/${t2.id}`, { method: 'DELETE' });
+          if (!res.ok) { fail(); return; }
+          await refresh();
+        });
       });
       list.append(row);
     }
@@ -443,10 +477,12 @@ async function openTabManager() {
     e.preventDefault();
     const name = ref(dialog, 'name').value.trim();
     if (!name) return;
-    const res = await api('/tabs', { method: 'POST', ...jsonBody({ name, allowGuestUploads: false }) });
-    if (!res.ok) { fail(res.status === 409 ? t('tabNameInUse') : null); return; }
-    ref(dialog, 'name').value = '';
-    await refresh();
+    await withBusy(ref(dialog, 'form'), async () => {
+      const res = await api('/tabs', { method: 'POST', ...jsonBody({ name, allowGuestUploads: false }) });
+      if (!res.ok) { fail(res.status === 409 ? t('tabNameInUse') : null); return; }
+      ref(dialog, 'name').value = '';
+      await refresh();
+    });
   });
 
   const refresh = async () => {
@@ -490,15 +526,17 @@ async function openInvites() {
     e.preventDefault();
     const raw = ref(dialog, 'email').value.trim();
     if (!raw) return;
-    const sep = raw.indexOf(':');
-    const kind = sep > 0 ? raw.slice(0, sep).toLowerCase() : null;
-    const payload = kind === 'telegram' || kind === 'max'
-      ? { channel: kind === 'max' ? 'Max' : 'Telegram', handle: raw.slice(sep + 1).trim() }
-      : { email: raw };
-    const res = await api('/invites', { method: 'POST', ...jsonBody(payload) });
-    if (!res.ok) { message.textContent = t('inviteFail'); return; }
-    ref(dialog, 'email').value = '';
-    await load();
+    await withBusy(ref(dialog, 'form'), async () => {
+      const sep = raw.indexOf(':');
+      const kind = sep > 0 ? raw.slice(0, sep).toLowerCase() : null;
+      const payload = kind === 'telegram' || kind === 'max'
+        ? { channel: kind === 'max' ? 'Max' : 'Telegram', handle: raw.slice(sep + 1).trim() }
+        : { email: raw };
+      const res = await api('/invites', { method: 'POST', ...jsonBody(payload) });
+      if (!res.ok) { message.textContent = t('inviteFail'); return; }
+      ref(dialog, 'email').value = '';
+      await load();
+    });
   });
 
   document.body.append(dialog);
@@ -715,16 +753,22 @@ function updateDownloadSelected(view) {
 
 async function downloadSelected(view) {
   const status = ref(view, 'status');
-  const res = await api('/download', { method: 'POST', ...jsonBody({ ids: [...state.selected] }) });
-  if (!res.ok) { status.textContent = t('downloadFailed'); return; }
-  const url = URL.createObjectURL(await res.blob());
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'eventpix-selection.zip';
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  const btn = ref(view, 'download-selected');
+  if (btn.dataset.busy === 'true') return;
+  status.textContent = t('downloadPreparing');   // the ZIP build can take a while for big selections
+  await withBusy(btn, async () => {
+    const res = await api('/download', { method: 'POST', ...jsonBody({ ids: [...state.selected] }) });
+    if (!res.ok) { status.textContent = t('downloadFailed'); return; }
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'eventpix-selection.zip';
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    status.textContent = '';
+  });
 }
 
 // ---- lightbox with zoom (wheel, double click, pinch) ------------------------------------------------------
@@ -908,29 +952,31 @@ async function openSubscriptions() {
 
   ref(dialog, 'form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    message.replaceChildren();
-    const channel = ref(dialog, 'channel').value;
-    const tabId = ref(dialog, 'tab').value || null;
-    const mode = ref(dialog, 'mode').value;
-    if (channel === 'Telegram' || channel === 'Max') {
-      const params = new URLSearchParams({ channel, mode });
-      if (tabId) params.set('tab', tabId);
-      const res = await api(`/subscriptions/bot-link?${params}`);
-      if (!res.ok) { message.textContent = t(channel === 'Max' ? 'subsMaxOff' : 'subsTelegramOff'); return; }
-      const link = (await res.json()).url;
-      const a = document.createElement('a');
-      a.href = link;
-      a.rel = 'noreferrer';
-      a.textContent = link;
-      const hint = document.createElement('span');
-      hint.textContent = t(channel === 'Max' ? 'subsMaxHint' : 'subsTelegramHint') + ' ';
-      message.append(hint, a);
-      return;
-    }
+    await withBusy(ref(dialog, 'form'), async () => {
+      message.replaceChildren();
+      const channel = ref(dialog, 'channel').value;
+      const tabId = ref(dialog, 'tab').value || null;
+      const mode = ref(dialog, 'mode').value;
+      if (channel === 'Telegram' || channel === 'Max') {
+        const params = new URLSearchParams({ channel, mode });
+        if (tabId) params.set('tab', tabId);
+        const res = await api(`/subscriptions/bot-link?${params}`);
+        if (!res.ok) { message.textContent = t(channel === 'Max' ? 'subsMaxOff' : 'subsTelegramOff'); return; }
+        const link = (await res.json()).url;
+        const a = document.createElement('a');
+        a.href = link;
+        a.rel = 'noreferrer';
+        a.textContent = link;
+        const hint = document.createElement('span');
+        hint.textContent = t(channel === 'Max' ? 'subsMaxHint' : 'subsTelegramHint') + ' ';
+        message.append(hint, a);
+        return;
+      }
 
-    const res = await api('/subscriptions', { method: 'PUT', ...jsonBody({ channel, tabId, mode }) });
-    if (!res.ok) { message.textContent = t('subsFail'); return; }
-    await load();
+      const res = await api('/subscriptions', { method: 'PUT', ...jsonBody({ channel, tabId, mode }) });
+      if (!res.ok) { message.textContent = t('subsFail'); return; }
+      await load();
+    });
   });
 
   const tabSelect = ref(dialog, 'tab');
