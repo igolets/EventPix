@@ -208,7 +208,8 @@ Hooks: `data-ref="..."` marks elements the core fills or wires (see the default 
 The `login` template carries, besides the e-mail/code forms, `data-ref="bot-login"` (unhidden when `/public`
 reports a configured bot), the per-channel buttons `data-ref="login-telegram"` / `data-ref="login-max"`
 (hidden unless that capability is true), `data-ref="bot-open"` (the deep-link anchor shown after minting)
-and `data-ref="bot-status"` (waiting/expired text). The core polls `/auth/bot/poll` every 3 seconds until
+and `data-ref="login-status"` (a `role="status"` live region the core fills with in-progress feedback -
+connecting/sending/checking - plus the waiting/expired text). The core polls `/auth/bot/poll` every 3 seconds until
 confirmation, expiry or the visitor leaving the login screen.
 Theme markup can declare translatable text: `data-i18n="key"` sets `textContent` from the strings system
 and `data-i18n-aria="key"` sets the `aria-label` and mirrors it to a `title` hover hint (so icon-only
@@ -259,15 +260,19 @@ State is exposed to CSS as attributes and properties — the core never sets cla
   must size its media area with definite tracks (e.g. `grid-template: minmax(0,1fr) / minmax(0,1fr)`) — auto tracks
   size to the media and its `max-width`/`max-height: 100%` would never constrain it — and should keep
   `touch-action: none` on the stage;
-* manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed.
+* manage rows: `data-kind` (`section|author`), `data-armed` while the delete is armed;
+* busy feedback: forms and buttons carry `data-busy=true` while their request is in flight (e-mail code
+  request, code verify, bot sign-in request, dialog saves/deletes, selection ZIP download) and the core
+  ignores re-entry while busy, so a double click cannot fire a request twice; themes dim
+  `[data-busy=true]` controls (the login status text renders into `login-status` above).
 
-i18n keys (strings template): `pageTitle`, `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`,
-`codeLabel`, `viewAlbum`, `loginTelegram`, `loginMax`, `botOpenTelegram`, `botOpenMax`, `botWaiting`, `botExpired`,
+i18n keys (strings template): `pageTitle`, `rateLimited`, `emailInvalid`, `codeInvalid`, `eyebrow`, `emailLabel`, `sendCode`, `sendingCode`,
+`codeLabel`, `verifyingCode`, `viewAlbum`, `loginTelegram`, `loginMax`, `botOpenTelegram`, `botOpenMax`, `botConnecting`, `botWaiting`, `botExpired`,
 `botFail`, `upload`, `notifyMe`, `signout`, `back`, `downloadTab`, `downloadStarred`, `downloadAll`,
 `empty`, `notFoundTitle`, `notFoundText`, `uploading` (`{percent}`), `uploaded` (`{count}`), `uploadFailed`
 (`{name}`), `dropHere`, `dropSignIn`, `dropNotAllowed`, `subsTitle`, `subsChannel`, `subsEmail`, `subsTelegram`, `subsMax`, `subsTab`, `subsAllTabs`, `subsMode`,
 `subsInstant`, `subsDigest`, `subsAdd`, `subsEmpty`, `subsRemove`, `subsFail`, `subsTelegramHint`,
-`subsTelegramOff`, `subsMaxHint`, `subsMaxOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadFailed`, `unsubTitle`,
+`subsTelegramOff`, `subsMaxHint`, `subsMaxOff`, `select`, `selecting`, `downloadSelected` (`{count}`), `downloadPreparing`, `downloadFailed`, `unsubTitle`,
 `unsubOk`, `unsubInvalid`, `unsubBadLink`, `tabNew`, `tabRename`, `tabCreateTitle`, `tabRenameTitle`,
 `tabNameLabel`, `tabSave`, `tabDelete`, `tabDeleteArmed`, `tabNameInUse`, `tabFail`, `manageTabs`,
 `manageTitle`, `addSection`, `guestUploads`, `invites`, `invitesTitle`, `invitesEmailLabel`, `invitesAdd`,

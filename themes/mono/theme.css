@@ -31,6 +31,9 @@ input[type=email], input:not([type]), select { width: 100%; padding: .7rem .9rem
 .column { display: grid; gap: .8rem; margin-top: 1.4rem; }
 label { font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
 
+/* busy states (core drives [data-busy=true] on forms/buttons while a request is in flight) */
+[data-busy=true]:is(input, button, a), [data-busy=true] :is(input, button, a) { opacity: .4; pointer-events: none; }
+
 /* gate (login, unsubscribe, not-found) */
 .gate { min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; }
 .sheet { width: min(440px, 100%); background: var(--paper); border: 1px solid var(--line2); outline: 1px solid var(--line2);

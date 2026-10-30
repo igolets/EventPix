@@ -32,6 +32,9 @@ input[type=email], input:not([type]) { width: 100%; padding: .75rem 1rem; border
 .stack { display: grid; gap: .75rem; margin-top: 1.25rem; }
 label { font-size: .9rem; color: var(--muted); }
 
+/* busy states (core drives [data-busy=true] on forms/buttons while a request is in flight) */
+[data-busy=true]:is(input, button, a), [data-busy=true] :is(input, button, a) { opacity: .5; pointer-events: none; }
+
 /* login */
 .login { min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; }
 .card { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: calc(var(--radius) + 6px); padding: 2rem; box-shadow: var(--shadow); }
