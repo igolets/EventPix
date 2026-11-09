@@ -116,7 +116,6 @@ internal sealed class TestAppFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        _configureSettings?.Invoke(builder);
         Directory.CreateDirectory(Path.Combine(Root, "data"));
         Directory.CreateDirectory(Path.Combine(Root, "media"));
 
@@ -139,9 +138,11 @@ internal sealed class TestAppFactory : WebApplicationFactory<Program>
         builder.UseSetting($"{EventPixOptions.Section}:DataPath", Path.Combine(Root, "data"));
         builder.UseSetting($"{EventPixOptions.Section}:StoragePath", Path.Combine(Root, "media"));
         builder.UseSetting($"{EventPixOptions.Section}:ThemesPath", themes);
+        builder.UseSetting($"{EventPixOptions.Section}:Language", "en");   // a local appsettings.Development.json must not flip bot/e-mail texts
         builder.UseSetting($"{SmtpOptions.Section}:Host", "");   // LogEmailSender prints codes to the log
         builder.UseSetting($"{TelegramOptions.Section}:BotToken", "");   // a local appsettings.Development.json
         builder.UseSetting($"{MaxOptions.Section}:BotToken", "");        // must not leak bot tokens into tests
+        _configureSettings?.Invoke(builder);   // last wins: a test may override any default above
         builder.ConfigureServices(services =>
         {
             _configureServices?.Invoke(services);
