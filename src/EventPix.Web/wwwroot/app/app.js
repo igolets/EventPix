@@ -146,7 +146,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const withBusy = async (el, action) => {
   if (el.dataset.busy === 'true') return;
   el.dataset.busy = 'true';
-  try { await action(); } finally { el.dataset.busy = 'false'; }
+  try { return await action(); } finally { el.dataset.busy = 'false'; }
 };
 
 function tpl(name) {
