@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15" />
     <!-- MIT. Windows service hosting (UseWindowsService); no-op on Linux/Docker. -->
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.14" />
     <!-- MIT (MailKit/MimeKit), Apache-2.0 (SQLitePCLRaw), MIT (System.*). Direct refs pin patched transitive versions. -->
